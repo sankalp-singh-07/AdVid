@@ -8,6 +8,7 @@ import logo from "../assets/logo.png";
 export default function Navbar() {
     const [openMobileMenu, setOpenMobileMenu] = useState(false);
     const pathname = useLocation().pathname;
+    const auth = false
 
     useEffect(() => {
         if (openMobileMenu) {
@@ -48,6 +49,7 @@ export default function Navbar() {
                     <XIcon />
                 </button>
             </div>
+            {auth ? <>
             <div className="flex items-center gap-4">
                 <button className="hidden md:block hover:bg-slate-100 transition px-4 py-2 border border-indigo-600 rounded-md">
                     Sign in
@@ -59,6 +61,7 @@ export default function Navbar() {
                     <MenuIcon size={26} className="active:scale-90 transition" />
                 </button>
             </div>
+                </>: <p>hello</p>}
         </nav>
     );
 }
