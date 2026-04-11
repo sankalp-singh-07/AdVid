@@ -8,7 +8,7 @@ import logo from "../assets/logo.png";
 export default function Navbar() {
     const [openMobileMenu, setOpenMobileMenu] = useState(false);
     const pathname = useLocation().pathname;
-    const auth = false
+    const auth = true
 
     useEffect(() => {
         if (openMobileMenu) {
@@ -30,7 +30,7 @@ export default function Navbar() {
             </Link>
             <div className="hidden items-center md:gap-8 lg:gap-9 font-medium md:flex lg:pl-20">
                 {navLinks.map((link) => (
-                    <NavLink key={link.name} href={link.href} className="hover:text-indigo-600">
+                    <NavLink key={link.name} to={link.href} className="hover:text-indigo-600">
                         {link.name}
                     </NavLink>
                 ))}
@@ -38,7 +38,7 @@ export default function Navbar() {
             {/* Mobile menu */}
             <div className={`fixed inset-0 flex flex-col items-center justify-center gap-6 text-lg font-medium bg-white/40 backdrop-blur-md md:hidden transition duration-300 ${openMobileMenu ? "translate-x-0" : "-translate-x-full"}`}>
                 {navLinks.map((link) => (
-                    <NavLink key={link.name} href={link.href}>
+                    <NavLink key={link.name} to={link.href} onClick={() => setOpenMobileMenu(false)}>
                         {link.name}
                     </NavLink>
                 ))}
