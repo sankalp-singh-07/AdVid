@@ -26,7 +26,7 @@ export default function Navbar() {
     return (
         <nav className={`flex items-center justify-between fixed z-50 top-0 w-full px-6 md:px-16 lg:px-24 xl:px-32 py-4 border-b border-slate-200 bg-white/40 ${openMobileMenu ? 'bg-white/80' : 'backdrop-blur'}`}>
             <Link to="/">
-                <img className="h-12 md:h-12 w-auto shrink-0" src={logo} alt="Logo" width={140} height={40} fetchPriority="high" />
+                <img className="h-12 md:h-6 w-auto shrink-0" src={logo} alt="Logo" width={140} height={40} fetchPriority="high" />
             </Link>
             <div className="hidden items-center md:gap-8 lg:gap-9 font-medium md:flex lg:pl-20">
                 {navLinks.map((link) => (
