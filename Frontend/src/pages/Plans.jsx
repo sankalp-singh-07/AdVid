@@ -1,4 +1,5 @@
 import { pricingData } from "../data/pricingData";
+import SectionTitle from "../components/SectionTitle";
 
 const Plans = () => {
   return (
@@ -6,14 +7,11 @@ const Plans = () => {
 
       {/* HEADER */}
       <div className="text-center max-w-2xl mx-auto mb-16">
-        <h1 className="text-4xl font-semibold text-gray-800">
-          Pricing Plans
-        </h1>
-
-        <p className="text-gray-500 mt-3">
-          Flexible pricing options designed to meet your needs —
-          whether you're just getting started or scaling up.
-        </p>
+        <SectionTitle
+          text2="Pricing Plans"
+          text3="Flexible pricing options designed to meet your needs —
+          whether you're just getting started or scaling up."
+        />
       </div>
 
       {/* CARDS */}
