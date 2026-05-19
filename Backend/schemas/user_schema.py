@@ -65,6 +65,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     mobile: str
     dob: str
+    credits: int
 
     class Config:
         from_attributes = True

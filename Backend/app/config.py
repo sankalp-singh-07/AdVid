@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 1440
     JWT_REFRESH_EXPIRE_MINUTES: int = 10080
     ENVIRONMENT: str = "development"
+    SENTRY_DSN: str = "sentry-dsn"
 
     model_config = SettingsConfigDict(env_file=".env")
 
