@@ -30,6 +30,7 @@ class Project(Base):
     # Generated media
     image_url_1: Mapped[str | None] = mapped_column(String, nullable=True)
     image_url_2: Mapped[str | None] = mapped_column(String, nullable=True)
+    combined_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     video_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Status flags

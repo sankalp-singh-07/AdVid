@@ -23,6 +23,7 @@ class ProjectResponse(BaseModel):
     target_length: int | None
     image_url_1: str | None
     image_url_2: str | None
+    combined_image_url: str | None
     video_url: str | None
     is_published: bool
     is_generating_image: bool

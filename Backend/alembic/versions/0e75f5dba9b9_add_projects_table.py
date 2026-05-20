@@ -31,6 +31,7 @@ def upgrade() -> None:
         sa.Column('target_length', sa.Integer(), nullable=True),
         sa.Column('image_url_1', sa.String(), nullable=True),
         sa.Column('image_url_2', sa.String(), nullable=True),
+        sa.Column('combined_image_url', sa.String(), nullable=True),
         sa.Column('video_url', sa.String(), nullable=True),
         sa.Column('is_published', sa.Boolean(), server_default='false', nullable=False),
         sa.Column('is_generating_image', sa.Boolean(), server_default='false', nullable=False),
