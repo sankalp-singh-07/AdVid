@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.db import Base, engine
-from routes import auth_route
+from routes import auth_route, project_route
 
 import sentry_sdk
 from app.config import settings
 
+import models.user_model  # noqa: F401
+import models.project_model  # noqa: F401
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +30,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_route.router, prefix="/api")
+app.include_router(project_route.router, prefix="/api")
 
 
 @app.get("/")

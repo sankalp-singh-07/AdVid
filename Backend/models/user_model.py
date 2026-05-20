@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime, timezone
+from typing import List
 
 from sqlalchemy import DateTime, String, Integer
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -22,4 +23,8 @@ class User(Base):
     credits: Mapped[int] = mapped_column(Integer, nullable=False, default=5, server_default="5")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    projects: Mapped[List["Project"]] = relationship(  # noqa: F821
+        "Project", back_populates="owner", cascade="all, delete-orphan"
     )
