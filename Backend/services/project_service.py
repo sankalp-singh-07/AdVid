@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import HTTPException, status
 import httpx
 from sqlalchemy import select, func
@@ -114,7 +115,7 @@ async def create_project(
     # 2. Combine the images
     logger.info("Combining images during project creation...")
     try:
-        combined_bytes = generate_combined_image(image1_bytes, image2_bytes)
+        combined_bytes = await asyncio.to_thread(generate_combined_image, image1_bytes, image2_bytes)
     except Exception as exc:
         logger.error("Failed to combine images: %s", exc)
         raise HTTPException(
@@ -356,7 +357,8 @@ async def create_video(
 
         # 4. Generate video from the combined image using Veo
         logger.info("Generating video showcase via Veo...")
-        video_bytes = generate_video_from_image(
+        video_bytes = await asyncio.to_thread(
+            generate_video_from_image,
             image_bytes=combined_bytes,
             product_name=project.product_name or "",
             product_description=project.product_description or "",

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-export default function UploadZone({ title }) {
+export default function UploadZone({ title, onFileSelect }) {
   const inputRef = useRef();
   const [preview, setPreview] = useState(null);
   const [fileName, setFileName] = useState("");

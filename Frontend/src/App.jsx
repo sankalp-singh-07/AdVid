@@ -10,14 +10,25 @@ import MyGeneration from "./pages/MyGeneration";
 import Community from "./pages/Community";
 import Plans from "./pages/Plans";
 import Loading from "./pages/Loading";
+import AuthModal from "./components/AuthModal";
+import { useAuth } from "./context/AuthContext";
 
 export default function App() {
-
     const location = useLocation();
+    const { loading, isAuthModalOpen, setIsAuthModalOpen } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#f9fafb]">
+                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
         <>
             <Navbar />
+            <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
 
             <AnimatePresence mode="wait">
 

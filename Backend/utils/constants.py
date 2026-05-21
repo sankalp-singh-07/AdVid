@@ -12,7 +12,7 @@ plans = {
     "enterprise": {
         "plan" : "Enterprise",
         "cost" : 50,
-        "credits" : 200
+        "credits" : 500
     },
 
 }

@@ -37,6 +37,8 @@ async def get_credits(current_user: CurrentUser):
 
 @router.post("", status_code=201, response_model=ProjectResponse)
 async def create(
+    current_user: CurrentUser,
+    db: DbDep,
     name: str = Form(...),
     aspect_ratio: str | None = Form(None),
     user_prompt: str | None = Form(None),
@@ -44,9 +46,7 @@ async def create(
     product_description: str | None = Form(None),
     target_length: int | None = Form(None),
     image1: UploadFile = File(...),
-    image2: UploadFile = File(...),
-    current_user: CurrentUser = Depends(get_current_user),
-    db: DbDep = Depends(get_db)
+    image2: UploadFile = File(...)
 ):
     project_data = ProjectCreate(
         name=name,
@@ -74,6 +74,12 @@ async def list_projects(current_user: CurrentUser, db: DbDep):
     return await get_user_projects(user=current_user, db=db)
 
 
+@router.get("/public", status_code=200, response_model=ProjectListResponse)
+async def list_public_projects(current_user: CurrentUser, db: DbDep, skip: int = 0, limit: int = 10):
+    """Retrieve all published projects from all users."""
+    return await get_public_projects(db=db, skip=skip, limit=limit)
+
+
 @router.get("/{project_id}", status_code=200, response_model=ProjectResponse)
 async def get_project(project_id: str, current_user: CurrentUser, db: DbDep):
     return await get_project_by_id(project_id=project_id, user=current_user, db=db)
@@ -84,12 +90,6 @@ async def toggle_visibility(project_id: str, current_user: CurrentUser, db: DbDe
     return await toggle_project_visibility(
         project_id=project_id, user=current_user, db=db
     )
-
-
-@router.get("/public", status_code=200, response_model=ProjectListResponse)
-async def list_public_projects(db: DbDep, skip: int = 0, limit: int = 10, current_user: CurrentUser = Depends(get_current_user)):
-    """Retrieve all published projects from all users."""
-    return await get_public_projects(db=db, skip=skip, limit=limit)
 
 
 @router.delete("/{project_id}", status_code=200)
@@ -103,8 +103,8 @@ async def delete(project_id: str, current_user: CurrentUser, db: DbDep):
 async def generate_video(
     project_id: str,
     request_data: VideoGenerateRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: DbDep = Depends(get_db)
+    current_user: CurrentUser,
+    db: DbDep
 ):
     """
     Accepts a combined image URL, downloads the image,
