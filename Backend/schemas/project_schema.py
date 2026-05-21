@@ -43,3 +43,8 @@ class ProjectListResponse(BaseModel):
 class CreditsResponse(BaseModel):
     credits: int
 
+
+class VideoGenerateRequest(BaseModel):
+    combined_image_url: str
+
+

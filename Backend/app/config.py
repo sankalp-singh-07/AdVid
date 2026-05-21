@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     SENTRY_DSN: str = "sentry-dsn"
 
+    CLOUDINARY_CLOUD_NAME: str | None = None
+    CLOUDINARY_API_KEY: str | None = None
+    CLOUDINARY_API_SECRET: str | None = None
+
+    GEMINI_API_KEY: str | None = None
+    GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
+    GEMINI_VIDEO_MODEL: str = "veo-2.0-generate-002"
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
