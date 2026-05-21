@@ -22,3 +22,44 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# IDE / Editor
+.idea/
+.vscode/
+
+# Pytest
+.pytest_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database (if you add later)
+*.sqlite3
+*.db
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+
+# Migrations (optional - keep if using Alembic)
+# alembic/versions/*.py
+
+# Misc
+*.swp
