@@ -44,9 +44,11 @@ export default function HeroSection() {
                     <span>Get Started</span>
                 </button>
 
-                <button className="flex items-center justify-center gap-2 border border-indigo-400 px-5 py-3 rounded-md text-indigo-600">
+                <button 
+                    onClick={() => navigate("/community")}
+                    className="flex items-center justify-center gap-2 border border-indigo-400 px-5 py-3 rounded-md text-indigo-600">
                     <SparklesIcon size={16} />
-                    <span>AI Features</span>
+                    <span>Gallery</span>
                 </button>
 
             </div>

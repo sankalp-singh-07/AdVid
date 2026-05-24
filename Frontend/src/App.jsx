@@ -1,5 +1,6 @@
 import { Route, Routes, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import ScrollToTop from "./components/ScrollToTop";
 
 import Home from "./pages/Home";
 import Navbar from "./components/Navbar";
