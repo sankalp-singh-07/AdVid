@@ -6,6 +6,7 @@ import AspectRatioSelector from "../components/AspectRatioSelector";
 import { Wand2, AlertCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
+import { formatApiError } from "../utils/errors";
 
 const Generator = () => {
   const navigate = useNavigate();
@@ -100,12 +101,10 @@ const Generator = () => {
       navigate(`/result/${response.data.id}`);
     } catch (err) {
       console.error(err);
-      const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setError(detail.map((d) => d.msg).join(", "));
-      } else {
-        setError(detail || err.message || "Failed to generate project. Please check backend service connectivity.");
-      }
+      setError(formatApiError(
+        err,
+        "Failed to generate project. Please check backend service connectivity."
+      ));
     } finally {
       setIsGenerating(false);
     }

@@ -130,8 +130,8 @@ async def create_project(
     try:
         combined_bytes = await asyncio.to_thread(
             generate_combined_image,
-            image1_bytes,
             image2_bytes,
+            image1_bytes,
             product_name=project_data.product_name,
             product_description=project_data.product_description,
             user_prompt=project_data.user_prompt,

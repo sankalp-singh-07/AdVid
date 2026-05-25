@@ -8,7 +8,8 @@ const fieldLabels = {
 };
 
 export const formatApiError = (error, fallback = "Something went wrong.") => {
-  const detail = error?.response?.data?.detail;
+  const data = error?.response?.data;
+  const detail = data?.detail;
 
   if (Array.isArray(detail)) {
     return detail
@@ -27,6 +28,10 @@ export const formatApiError = (error, fallback = "Something went wrong.") => {
 
   if (detail?.message) {
     return detail.message;
+  }
+
+  if (typeof data?.message === "string") {
+    return data.message;
   }
 
   return error?.message || fallback;

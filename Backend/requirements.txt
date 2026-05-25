@@ -42,3 +42,6 @@ cloudinary==1.41.0
 Pillow>=11.0.0
 google-genai
 aiosqlite==0.20.0
+imageio==2.37.3
+imageio-ffmpeg==0.6.0
+numpy==2.4.6

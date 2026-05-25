@@ -1,4 +1,5 @@
 import io
+import base64
 import logging
 from PIL import Image
 from fastapi import HTTPException, status
@@ -80,10 +81,11 @@ async def upload_to_cloudinary(
     if not is_cloudinary_configured:
         logger.info("Mock upload triggered for filename=%s (resource_type=%s)", filename, resource_type)
         mock_id = f"mock_{filename.replace('.', '_')}"
+        encoded = base64.b64encode(file_bytes).decode("ascii")
         if resource_type == "video":
-            mock_url = "https://res.cloudinary.com/demo/video/upload/dog.mp4"
+            mock_url = f"data:video/mp4;base64,{encoded}"
         else:
-            mock_url = f"https://res.cloudinary.com/demo/image/upload/v12345/sample.jpg"
+            mock_url = f"data:image/jpeg;base64,{encoded}"
         return {"secure_url": mock_url, "public_id": mock_id}
 
     try:
@@ -162,4 +164,3 @@ def extract_public_id_from_url(url: str | None) -> str | None:
     except Exception as exc:
         logger.error("Failed to parse public ID from URL %s: %s", url, exc)
         return None
-

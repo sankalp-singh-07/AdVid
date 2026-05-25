@@ -1,9 +1,10 @@
 import base64
 import io
+import os
 import time
 import tempfile
 import logging
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 from app.config import settings
 
 logger = logging.getLogger("ai_helper")
@@ -30,6 +31,87 @@ def _load_reference_image(image_bytes: bytes) -> Image.Image:
     image = Image.open(io.BytesIO(image_bytes))
     image.load()
     return image
+
+
+def _target_size_for_aspect_ratio(aspect_ratio: str | None) -> tuple[int, int]:
+    if aspect_ratio == "9:16":
+        return 1080, 1920
+    return 1600, 900
+
+
+def _cover_image(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    image = image.convert("RGBA")
+    background = Image.new("RGBA", image.size, (244, 245, 247, 255))
+    background.alpha_composite(image)
+    return ImageOps.fit(
+        background.convert("RGB"),
+        size,
+        method=Image.Resampling.LANCZOS,
+        centering=(0.5, 0.38),
+    )
+
+
+def _contain_image(image: Image.Image, max_size: tuple[int, int]) -> Image.Image:
+    contained = image.convert("RGBA")
+    contained.thumbnail(max_size, Image.Resampling.LANCZOS)
+    return contained
+
+
+def _generate_local_context_image(
+    person_image_bytes: bytes,
+    product_image_bytes: bytes,
+    *,
+    product_name: str | None = None,
+    aspect_ratio: str | None = None,
+) -> bytes:
+    """
+    Local non-AI fallback for development/quota failures.
+
+    It creates one usable ad-style image by using the model/person photo as the
+    background and placing the product as a foreground object with a soft shadow.
+    """
+    canvas_size = _target_size_for_aspect_ratio(aspect_ratio)
+    person_image = _load_reference_image(person_image_bytes)
+    product_image = _load_reference_image(product_image_bytes)
+
+    canvas = _cover_image(person_image, canvas_size).convert("RGBA")
+    overlay = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+
+    max_product_size = (
+        int(canvas_size[0] * (0.42 if aspect_ratio == "9:16" else 0.20)),
+        int(canvas_size[1] * 0.30),
+    )
+    product = _contain_image(product_image, max_product_size)
+
+    margin_x = int(canvas_size[0] * 0.08)
+    if aspect_ratio == "9:16":
+        x = int(canvas_size[0] * 0.50)
+        y = int(canvas_size[1] * 0.58)
+    else:
+        x = int(canvas_size[0] * 0.62)
+        y = int(canvas_size[1] * 0.55)
+
+    shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
+    shadow_mask = product.getchannel("A")
+    shadow.putalpha(shadow_mask)
+    shadow = ImageOps.colorize(shadow.getchannel("A"), black=(0, 0, 0), white=(0, 0, 0)).convert("RGBA")
+    shadow.putalpha(shadow_mask.point(lambda value: int(value * 0.34)))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(18))
+    overlay.alpha_composite(shadow, (x + 18, y + 22))
+    overlay.alpha_composite(product, (x, y))
+
+    combined = Image.alpha_composite(canvas, overlay)
+
+    gradient = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(gradient)
+    for row in range(canvas_size[1]):
+        opacity = int(130 * max(0, (row - canvas_size[1] * 0.62) / (canvas_size[1] * 0.38)))
+        draw.line([(0, row), (canvas_size[0], row)], fill=(0, 0, 0, opacity))
+    combined = Image.alpha_composite(combined, gradient)
+
+    output = io.BytesIO()
+    combined.convert("RGB").save(output, format="JPEG", quality=92)
+    return output.getvalue()
 
 
 def _extract_generated_image_bytes(response) -> bytes | None:
@@ -77,22 +159,60 @@ def _format_provider_error(exc: Exception) -> tuple[str, int]:
     return first_line[:300], 422
 
 
-def _get_mock_video_bytes() -> bytes:
-    """Helper to fetch a tiny valid sample MP4 from Cloudinary to use in fallbacks."""
+def _generate_local_video_from_image(
+    image_bytes: bytes,
+    aspect_ratio: str | None = None,
+) -> bytes:
+    """Create a short MP4 from the project image for free/local fallback mode."""
     try:
-        import httpx
-        url = "https://res.cloudinary.com/demo/video/upload/dog.mp4"
-        logger.info("Fetching mock video bytes from: %s", url)
-        with httpx.Client() as client:
-            resp = client.get(url, timeout=10.0)
-            if resp.status_code == 200:
-                logger.info("Mock video bytes retrieved successfully.")
-                return resp.content
-    except Exception as e:
-        logger.error("Failed to fetch mock video bytes online: %s", e)
-    
-    # Tiny fallback byte sequence representing a basic placeholder
-    return b'\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom\x00\x00\x00\x08free\x00\x00\x00\x08mdat'
+        import imageio.v2 as imageio
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError(
+            "Local video fallback requires imageio, imageio-ffmpeg, and numpy."
+        ) from exc
+
+    target_size = (720, 1280) if aspect_ratio == "9:16" else (1280, 720)
+    source = _cover_image(_load_reference_image(image_bytes), target_size)
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+
+        fps = 12
+        frame_count = 48
+        writer = imageio.get_writer(
+            tmp_path,
+            fps=fps,
+            codec="libx264",
+            quality=8,
+            macro_block_size=16,
+        )
+
+        try:
+            for index in range(frame_count):
+                progress = index / max(frame_count - 1, 1)
+                zoom = 1.0 + (progress * 0.08)
+                crop_width = int(target_size[0] / zoom)
+                crop_height = int(target_size[1] / zoom)
+                left = int((target_size[0] - crop_width) * (0.50 + progress * 0.10))
+                top = int((target_size[1] - crop_height) * 0.50)
+                frame = source.crop(
+                    (left, top, left + crop_width, top + crop_height)
+                ).resize(target_size, Image.Resampling.LANCZOS)
+                writer.append_data(np.asarray(frame))
+        finally:
+            writer.close()
+
+        with open(tmp_path, "rb") as video_file:
+            return video_file.read()
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def generate_combined_image(
@@ -108,10 +228,22 @@ def generate_combined_image(
     Generates one realistic in-context ad image from a person image and a product image.
     """
     if not is_genai_available:
-        raise ImageGenerationError("google-genai is not installed.", status_code=503)
+        logger.warning("google-genai is unavailable. Using local image fallback.")
+        return _generate_local_context_image(
+            person_image_bytes,
+            product_image_bytes,
+            product_name=product_name,
+            aspect_ratio=aspect_ratio,
+        )
 
     if not settings.GEMINI_API_KEY:
-        raise ImageGenerationError("GEMINI_API_KEY is not configured.", status_code=503)
+        logger.warning("GEMINI_API_KEY is not configured. Using local image fallback.")
+        return _generate_local_context_image(
+            person_image_bytes,
+            product_image_bytes,
+            product_name=product_name,
+            aspect_ratio=aspect_ratio,
+        )
 
     try:
         logger.info(
@@ -158,7 +290,17 @@ def generate_combined_image(
         raise
     except Exception as exc:
         provider_error, provider_status = _format_provider_error(exc)
-        logger.error("Error during Gemini image generation: %s", provider_error)
+        logger.error(
+            "Error during Gemini image generation: %s. Using local image fallback.",
+            provider_error,
+        )
+        if provider_status == 503:
+            return _generate_local_context_image(
+                person_image_bytes,
+                product_image_bytes,
+                product_name=product_name,
+                aspect_ratio=aspect_ratio,
+            )
         raise ImageGenerationError(provider_error, status_code=provider_status) from exc
 
 
@@ -174,12 +316,12 @@ def generate_video_from_image(
     If API key is missing or call fails, returns fallback mock video bytes.
     """
     if not is_genai_available:
-        logger.info("google-genai not available. Returning mock video.")
-        return _get_mock_video_bytes()
+        logger.info("google-genai not available. Returning local image video.")
+        return _generate_local_video_from_image(image_bytes, aspect_ratio)
 
     if not settings.GEMINI_API_KEY:
-        logger.info("GEMINI_API_KEY not configured. Returning mock video.")
-        return _get_mock_video_bytes()
+        logger.info("GEMINI_API_KEY not configured. Returning local image video.")
+        return _generate_local_video_from_image(image_bytes, aspect_ratio)
 
     try:
         logger.info("Attempting to generate video via Veo model: %s", settings.GEMINI_VIDEO_MODEL)
@@ -244,7 +386,6 @@ def generate_video_from_image(
                 raise Exception("Veo response did not contain generated videos.")
         finally:
             # Clean up local temp file
-            import os
             try:
                 os.unlink(tmp_path)
             except Exception:
@@ -259,6 +400,9 @@ def generate_video_from_image(
                 logger.warning("Failed to delete temp file from Gemini files API: %s", e)
 
     except Exception as exc:
-        logger.error("Error during Veo video generation: %s. Returning mock video.", exc)
+        logger.error(
+            "Error during Veo video generation: %s. Returning local image video.",
+            exc,
+        )
 
-    return _get_mock_video_bytes()
+    return _generate_local_video_from_image(image_bytes, aspect_ratio)

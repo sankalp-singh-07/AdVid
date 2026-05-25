@@ -16,7 +16,7 @@ if "postgresql+asyncpg://" in db_url and "?" in db_url:
     db_url = db_url.split("?", 1)[0]
 
 engine = create_async_engine(
-    db_url, echo=False, pool_size=5, max_overflow=10
+    db_url, echo=False, pool_size=5, max_overflow=10, pool_pre_ping=True
 )
 
 async_session = async_sessionmaker(
