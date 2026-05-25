@@ -1,9 +1,10 @@
+import base64
 import io
 import time
 import tempfile
 import logging
+from PIL import Image
 from app.config import settings
-from utils.cloudinary_helper import combine_images_horizontally
 
 logger = logging.getLogger("ai_helper")
 
@@ -15,6 +16,65 @@ try:
     logger.info("google-genai SDK imported successfully.")
 except ImportError:
     logger.warning("google-genai library is not installed. Please install it using requirements.txt. Running in mock/fallback mode.")
+
+
+class ImageGenerationError(RuntimeError):
+    """Raised when an in-context product image cannot be generated."""
+
+    def __init__(self, message: str, status_code: int = 422):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _load_reference_image(image_bytes: bytes) -> Image.Image:
+    image = Image.open(io.BytesIO(image_bytes))
+    image.load()
+    return image
+
+
+def _extract_generated_image_bytes(response) -> bytes | None:
+    parts = getattr(response, "parts", None)
+    if not parts and getattr(response, "candidates", None):
+        content = getattr(response.candidates[0], "content", None)
+        parts = getattr(content, "parts", None) if content else None
+
+    for part in parts or []:
+        as_image = getattr(part, "as_image", None)
+        if callable(as_image):
+            image = as_image()
+            if image is not None:
+                output = io.BytesIO()
+                image.convert("RGB").save(output, format="JPEG", quality=94)
+                return output.getvalue()
+
+        inline_data = getattr(part, "inline_data", None)
+        if inline_data is not None and getattr(inline_data, "data", None):
+            data = inline_data.data
+            if isinstance(data, str):
+                return base64.b64decode(data)
+            return data
+
+    return None
+
+
+def _format_provider_error(exc: Exception) -> tuple[str, int]:
+    message = str(exc)
+    status_code = getattr(exc, "status_code", None)
+
+    if status_code == 429 or "RESOURCE_EXHAUSTED" in message:
+        return ((
+            f"Gemini quota was exhausted for model {settings.GEMINI_IMAGE_MODEL}. "
+            "Try again later, use a billed API key, or choose another available image model."
+        ), 503)
+
+    if status_code in {401, 403} or "API_KEY" in message or "PERMISSION_DENIED" in message:
+        return (
+            "Gemini rejected the API key or the project does not have access to the selected image model.",
+            503,
+        )
+
+    first_line = message.splitlines()[0] if message else exc.__class__.__name__
+    return first_line[:300], 422
 
 
 def _get_mock_video_bytes() -> bytes:
@@ -35,53 +95,71 @@ def _get_mock_video_bytes() -> bytes:
     return b'\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom\x00\x00\x00\x08free\x00\x00\x00\x08mdat'
 
 
-def generate_combined_image(image1_bytes: bytes, image2_bytes: bytes) -> bytes:
+def generate_combined_image(
+    person_image_bytes: bytes,
+    product_image_bytes: bytes,
+    *,
+    product_name: str | None = None,
+    product_description: str | None = None,
+    user_prompt: str | None = None,
+    aspect_ratio: str | None = None,
+) -> bytes:
     """
-    Combines person and product images using Gemini 3.0 image generation capabilities.
-    If Gemini API key is missing or the call fails, falls back to Pillow-based horizontal stitching.
+    Generates one realistic in-context ad image from a person image and a product image.
     """
     if not is_genai_available:
-        logger.info("google-genai not available. Falling back to Pillow-based image combination.")
-        return combine_images_horizontally(image1_bytes, image2_bytes)
+        raise ImageGenerationError("google-genai is not installed.", status_code=503)
 
     if not settings.GEMINI_API_KEY:
-        logger.info("GEMINI_API_KEY not configured. Falling back to Pillow-based image combination.")
-        return combine_images_horizontally(image1_bytes, image2_bytes)
+        raise ImageGenerationError("GEMINI_API_KEY is not configured.", status_code=503)
 
     try:
-        logger.info("Attempting to combine images via Gemini model: %s", settings.GEMINI_IMAGE_MODEL)
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        
-        part1 = types.Part.from_bytes(data=image1_bytes, mime_type="image/jpeg")
-        part2 = types.Part.from_bytes(data=image2_bytes, mime_type="image/jpeg")
-
-        system_instruction = (
-            "Combine the person and product into a realistic photo. "
-            "Make the person naturally hold or use the product. "
-            "Match lighting, shadows, scale and perspective. "
-            "Make the person stand in professional studio lighting. "
-            "Output ecommerce-quality photo realistic imagery."
+        logger.info(
+            "Generating in-context product image via Gemini model: %s",
+            settings.GEMINI_IMAGE_MODEL,
         )
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        person_image = _load_reference_image(person_image_bytes)
+        product_image = _load_reference_image(product_image_bytes)
+
+        prompt_parts = [
+            "Create a single photorealistic ecommerce ad image using the first image as the person reference and the second image as the product reference.",
+            "The final image must not be a collage, split-screen, side-by-side layout, product cutout board, or before/after comparison.",
+            "Keep the person's face and identity recognizable. Integrate the product naturally into the scene.",
+            "If the product is a cup, mug, bottle, can, or handheld item, show the person naturally holding it with realistic hands, contact, shadows, scale, and perspective.",
+            "Match lighting and color so it looks like one real photo, not two pasted images.",
+            "Use clean professional ad photography with no extra text, watermark, logo hallucinations, borders, or UI.",
+        ]
+
+        if product_name:
+            prompt_parts.append(f"Product name/context: {product_name}.")
+        if product_description:
+            prompt_parts.append(f"Product details: {product_description}.")
+        if aspect_ratio:
+            prompt_parts.append(f"Compose for aspect ratio {aspect_ratio}.")
+        if user_prompt:
+            prompt_parts.append(f"Creative direction from user: {user_prompt}.")
 
         response = client.models.generate_content(
             model=settings.GEMINI_IMAGE_MODEL,
-            contents=[system_instruction, part1, part2],
+            contents=["\n".join(prompt_parts), person_image, product_image],
             config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"]
-            )
+                response_modalities=["TEXT", "IMAGE"],
+            ),
         )
 
-        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if part.inline_data is not None:
-                    logger.info("Gemini successfully generated combined image.")
-                    return part.inline_data.data
+        generated_bytes = _extract_generated_image_bytes(response)
+        if generated_bytes:
+            logger.info("Gemini successfully generated an in-context product image.")
+            return generated_bytes
 
-        logger.warning("Gemini response did not contain image data. Falling back to Pillow horizontal stitch.")
+        raise ImageGenerationError("Gemini response did not contain image data.")
+    except ImageGenerationError:
+        raise
     except Exception as exc:
-        logger.error("Error during Gemini image combination: %s. Falling back to Pillow horizontal stitch.", exc)
-
-    return combine_images_horizontally(image1_bytes, image2_bytes)
+        provider_error, provider_status = _format_provider_error(exc)
+        logger.error("Error during Gemini image generation: %s", provider_error)
+        raise ImageGenerationError(provider_error, status_code=provider_status) from exc
 
 
 def generate_video_from_image(

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     CLOUDINARY_API_SECRET: str | None = None
 
     GEMINI_API_KEY: str | None = None
-    GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
+    GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
     GEMINI_VIDEO_MODEL: str = "veo-2.0-generate-002"
 
     model_config = SettingsConfigDict(env_file=".env")

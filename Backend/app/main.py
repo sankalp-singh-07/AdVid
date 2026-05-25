@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from app.db import Base, engine
+from app.schema_sync import ensure_missing_columns
 from routes import auth_route, project_route
 from app.error_handlers import (
     http_exception_handler,
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up — environment: %s", settings.ENVIRONMENT)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(ensure_missing_columns)
     logger.info("Database tables verified/created.")
     yield
     logger.info("Shutting down.")

@@ -35,6 +35,12 @@ async def get_credits(current_user: CurrentUser):
     return await get_user_credits(current_user)
 
 
+@router.post(
+    "/create",
+    status_code=201,
+    response_model=ProjectResponse,
+    include_in_schema=False,
+)
 @router.post("", status_code=201, response_model=ProjectResponse)
 async def create(
     current_user: CurrentUser,
@@ -69,6 +75,12 @@ async def create(
     )
 
 
+@router.get(
+    "/projects",
+    status_code=200,
+    response_model=ProjectListResponse,
+    include_in_schema=False,
+)
 @router.get("", status_code=200, response_model=ProjectListResponse)
 async def list_projects(current_user: CurrentUser, db: DbDep):
     return await get_user_projects(user=current_user, db=db)
@@ -112,4 +124,3 @@ async def generate_video(
         user=current_user,
         db=db
     )
-

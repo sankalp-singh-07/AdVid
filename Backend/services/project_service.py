@@ -13,10 +13,10 @@ from utils.logger import get_logger
 from utils.cloudinary_helper import (
     upload_to_cloudinary,
     delete_from_cloudinary,
-    combine_images_horizontally,
     extract_public_id_from_url,
 )
 from utils.ai_helper import (
+    ImageGenerationError,
     generate_combined_image,
     generate_video_from_image,
 )
@@ -45,10 +45,23 @@ async def get_user_projects(user: User, db: AsyncSession) -> dict:
             .order_by(Project.created_at.desc())
         )
         projects = result.scalars().all()
-        logger.info("Found %d projects for user_id=%s", len(projects), user.id)
-        return {"projects": projects, "total": len(projects)}
+        if not projects:
+            return {"projects": [], "total": 0}
+        logger.info(
+            "Found %d projects for user_id=%s",
+            len(projects),
+            user.id,
+        )
+        return {
+            "projects": projects,
+            "total": len(projects),
+        }
     except SQLAlchemyError as exc:
-        logger.error("DB error listing projects for user_id=%s — %s", user.id, exc)
+        logger.error(
+            "DB error listing projects for user_id=%s — %s",
+            user.id,
+            exc,
+        )
         raise
 
 
@@ -115,12 +128,30 @@ async def create_project(
     # 2. Combine the images
     logger.info("Combining images during project creation...")
     try:
-        combined_bytes = await asyncio.to_thread(generate_combined_image, image1_bytes, image2_bytes)
+        combined_bytes = await asyncio.to_thread(
+            generate_combined_image,
+            image1_bytes,
+            image2_bytes,
+            product_name=project_data.product_name,
+            product_description=project_data.product_description,
+            user_prompt=project_data.user_prompt,
+            aspect_ratio=project_data.aspect_ratio,
+        )
+    except ImageGenerationError as exc:
+        logger.error("Failed to combine images: %s", exc)
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=(
+                "Failed to generate an in-context product image. "
+                "Please try clearer person/product photos or check the Gemini image model/API key. "
+                f"Provider error: {str(exc)}"
+            )
+        )
     except Exception as exc:
         logger.error("Failed to combine images: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Failed to combine the uploaded images: {str(exc)}"
+            detail=f"Failed to generate an in-context product image: {str(exc)}"
         )
 
     # 3. Upload to Cloudinary
@@ -434,4 +465,3 @@ async def get_public_projects(db: AsyncSession, skip: int = 0, limit: int = 10) 
     except SQLAlchemyError as exc:
         logger.error("DB error listing public projects — %s", exc)
         raise
-
