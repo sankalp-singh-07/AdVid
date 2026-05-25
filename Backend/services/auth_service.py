@@ -110,7 +110,7 @@ async def login_user(
         logger.error("DB error during login for email=%s — %s", user_login.email, exc)
         raise
 
-    if not user or not await verify_password(user_login.password, user.password):
+    if not user or not await verify_password(user_login.password, str(user.password)):
         logger.warning("Failed login attempt for email=%s", user_login.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

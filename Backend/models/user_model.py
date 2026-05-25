@@ -20,7 +20,7 @@ class User(Base):
     dob: Mapped[str] = mapped_column(String, nullable=False)
     password: Mapped[str] = mapped_column(String, nullable=False)
     reset_code: Mapped[str | None] = mapped_column(String, nullable=True)
-    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=100, server_default="100")
+    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=10, server_default="10")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

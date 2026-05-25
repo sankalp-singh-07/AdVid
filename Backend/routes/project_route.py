@@ -106,10 +106,6 @@ async def generate_video(
     current_user: CurrentUser,
     db: DbDep
 ):
-    """
-    Accepts a combined image URL, downloads the image,
-    generates a video showcase using Veo, and deducts 10 credits.
-    """
     return await create_video(
         project_id=project_id,
         combined_image_url=request_data.combined_image_url,

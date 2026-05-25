@@ -35,8 +35,15 @@ def do_run_migrations(connection):
 async def run_async_migrations():
     from app.config import settings
 
+    db_url = settings.DB_URL
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    if "postgresql+asyncpg://" in db_url and "?" in db_url:
+        db_url = db_url.split("?", 1)[0]
+
     connectable = create_async_engine(
-        settings.DB_URL,
+        db_url,
         poolclass=None,
     )
 

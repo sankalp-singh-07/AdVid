@@ -50,7 +50,7 @@ async def validation_exception_handler(
         content=_error_body(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Request validation failed.",
-            detail=errors,
+            detail=str(errors),
         ),
     )
 
@@ -110,7 +110,7 @@ async def sqlalchemy_error_handler(
 
 
 async def unhandled_exception_handler(
-    request: Request, exc: Exception
+    request: Request
 ) -> JSONResponse:
     logger.exception(
         "Unhandled exception on %s %s",

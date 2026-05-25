@@ -9,7 +9,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  // Sync user profile and credits
   const fetchUser = async () => {
     try {
       const response = await api.get("/auth/me");
@@ -17,7 +16,6 @@ export const AuthProvider = ({ children }) => {
       setIsLoggedIn(true);
       return response.data;
     } catch (error) {
-      // If unauthorized, clear local token
       localStorage.removeItem("access_token");
       setUser(null);
       setIsLoggedIn(false);
@@ -40,7 +38,6 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth();
 
-    // Listen to token refresh failure logout events
     const handleForceLogout = () => {
       setUser(null);
       setIsLoggedIn(false);
@@ -82,7 +79,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // call backend logout to clear cookie
       await api.post("/auth/logout");
     } catch (error) {
       console.error("Backend logout error:", error);
