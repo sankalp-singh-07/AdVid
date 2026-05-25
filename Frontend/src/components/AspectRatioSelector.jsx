@@ -1,8 +1,4 @@
-import { useState } from "react";
-
 export default function AspectRatioSelector({ aspectRatio, setAspectRatio }) {
-  const [ratio, setRatio] = useState("9:16");
-
   const options = [
     { label: "9:16", value: "9:16" },
     { label: "16:9", value: "16:9" },
@@ -19,10 +15,10 @@ export default function AspectRatioSelector({ aspectRatio, setAspectRatio }) {
           <button
             key={opt.value}
             type="button"
-            onClick={() => setRatio(opt.value)}
+            onClick={() => setAspectRatio(opt.value)}
             className={`w-12 h-12 rounded-lg border flex items-center justify-center
               ${
-                ratio === opt.value
+                aspectRatio === opt.value
                   ? "border-indigo-500 bg-indigo-50"
                   : "border-gray-300"
               }`}
@@ -33,7 +29,7 @@ export default function AspectRatioSelector({ aspectRatio, setAspectRatio }) {
       </div>
 
       <p className="text-xs text-gray-500 mt-2">
-        Selected: {ratio}
+        Selected: {aspectRatio}
       </p>
     </div>
   );

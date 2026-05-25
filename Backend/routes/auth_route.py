@@ -24,6 +24,7 @@ from services.auth_service import (
     send_reset_code,
     verify_reset_code,
 )
+from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,7 +37,7 @@ def set_refresh_token_cookie(response: Response, refresh_token: str):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
+        secure=settings.ENVIRONMENT == "production",
         samesite="lax",
         max_age=10080 * 60,  # 7 days in seconds
     )
@@ -76,7 +77,7 @@ async def logout(response: Response, current_user: CurrentUser):
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=True,
+        secure=settings.ENVIRONMENT == "production",
         samesite="lax",
     )
     return {"message": "Logged out successfully"}

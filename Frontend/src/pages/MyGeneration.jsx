@@ -10,7 +10,7 @@ const MyGeneration = () => {
   const [activeMenu, setActiveMenu] = useState(null);
 
   const navigate = useNavigate();
-  const { isLoggedIn, setIsAuthModalOpen } = useAuth();
+  const { isLoggedIn, openAuthModal } = useAuth();
 
   const fetchProjects = async () => {
     try {
@@ -58,7 +58,7 @@ const MyGeneration = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(blobURL);
-    } catch (e) {
+    } catch {
       window.open(url, "_blank");
     }
   };
@@ -76,7 +76,7 @@ const MyGeneration = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(blobURL);
-    } catch (e) {
+    } catch {
       window.open(url, "_blank");
     }
   };
@@ -110,7 +110,7 @@ const MyGeneration = () => {
             Please sign in or create an account to view and manage your generated image and video showcases.
           </p>
           <button
-            onClick={() => setIsAuthModalOpen(true)}
+            onClick={() => openAuthModal("login")}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition cursor-pointer shadow-lg hover:shadow-indigo-200"
           >
             Sign In / Register

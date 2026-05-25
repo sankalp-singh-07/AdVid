@@ -16,7 +16,8 @@ import { useAuth } from "./context/AuthContext";
 
 export default function App() {
     const location = useLocation();
-    const { loading, isAuthModalOpen, setIsAuthModalOpen } = useAuth();
+    const { loading, isAuthModalOpen, closeAuthModal, authModalMode } = useAuth();
+    const MotionDiv = motion.div;
 
     if (loading) {
         return (
@@ -29,11 +30,15 @@ export default function App() {
     return (
         <>
             <Navbar />
-            <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+            <AuthModal
+                isOpen={isAuthModalOpen}
+                mode={authModalMode}
+                onClose={closeAuthModal}
+            />
 
             <AnimatePresence mode="wait">
 
-                <motion.div
+                <MotionDiv
                     key={location.pathname}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -53,7 +58,7 @@ export default function App() {
 
                     </Routes>
 
-                </motion.div>
+                </MotionDiv>
 
             </AnimatePresence>
 

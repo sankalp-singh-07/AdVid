@@ -9,7 +9,7 @@ import api from "../utils/api";
 
 const Generator = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, user, refreshUser, setIsAuthModalOpen } = useAuth();
+  const { isLoggedIn, user, refreshUser, openAuthModal } = useAuth();
 
   const [name, setName] = useState("");
   const [productName, setProductName] = useState("");
@@ -35,7 +35,7 @@ const Generator = () => {
             Create an account or sign in to start generating high-quality context-aware images and video showcases for your products.
           </p>
           <button
-            onClick={() => setIsAuthModalOpen(true)}
+            onClick={() => openAuthModal("signup")}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-xl transition cursor-pointer shadow-lg hover:shadow-indigo-200"
           >
             Sign In / Register

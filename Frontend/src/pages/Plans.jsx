@@ -19,7 +19,7 @@ const loadRazorpayCheckout = () =>
   });
 
 const Plans = () => {
-  const { user, isLoggedIn, refreshUser, setIsAuthModalOpen } = useAuth();
+  const { user, isLoggedIn, refreshUser, openAuthModal } = useAuth();
   const [buyingPlanId, setBuyingPlanId] = useState(null);
   const [message, setMessage] = useState("");
 
@@ -27,7 +27,7 @@ const Plans = () => {
     setMessage("");
 
     if (!isLoggedIn) {
-      setIsAuthModalOpen(true);
+      openAuthModal("signup");
       return;
     }
 

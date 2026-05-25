@@ -1,197 +1,288 @@
-import { useState } from "react";
-import { X, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { X, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { formatApiError } from "../utils/errors";
 
-const AuthModal = ({ isOpen, onClose }) => {
-  const { login, register } = useAuth();
-  const [isLoginMode, setIsLoginMode] = useState(true);
+const countryCodes = [
+  { label: "IN", code: "+91", digits: 10 },
+  { label: "US", code: "+1", digits: 10 },
+  { label: "GB", code: "+44", digits: 10 },
+  { label: "AE", code: "+971", digits: 9 },
+  { label: "SG", code: "+65", digits: 8 },
+];
+
+const initialForm = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  password: "",
+  mobile: "",
+  dob: "",
+};
+
+const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const validatePassword = (password) => {
+  if (password.length < 8) return "Password must be at least 8 characters.";
+  if (!/[A-Z]/.test(password)) return "Password must contain one uppercase letter.";
+  if (!/\d/.test(password)) return "Password must contain one digit.";
+  if (!/[@$!%*?&]/.test(password)) {
+    return "Password must contain one special character: @, $, !, %, *, ?, or &.";
+  }
+  return "";
+};
+
+const AuthModal = ({ isOpen, mode = "login", onClose }) => {
+  const { login, register, setAuthModalMode } = useAuth();
+  const [form, setForm] = useState(initialForm);
+  const [country, setCountry] = useState(countryCodes[0]);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Form Fields
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [dob, setDob] = useState("");
+  const isLoginMode = mode === "login";
+
+  const title = useMemo(
+    () => (isLoginMode ? "Sign in to AdVid" : "Create your account"),
+    [isLoginMode]
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setError("");
+    setShowPassword(false);
+  }, [isOpen, mode]);
 
   if (!isOpen) return null;
+
+  const setField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const closeAndReset = () => {
+    setForm(initialForm);
+    setError("");
+    onClose();
+  };
+
+  const getValidationError = () => {
+    const email = form.email.trim();
+    const password = form.password;
+
+    if (!email || !password) return "Please enter your email and password.";
+    if (!validateEmail(email)) return "Please enter a valid email address.";
+
+    if (!isLoginMode) {
+      const firstName = form.firstName.trim();
+      const lastName = form.lastName.trim();
+      const mobile = form.mobile.trim();
+
+      if (!firstName || !lastName || !mobile || !form.dob) {
+        return "Please fill in all required fields.";
+      }
+
+      if (firstName.length < 2) return "First name must be at least 2 characters.";
+      if (!/^\d+$/.test(mobile)) return "Mobile number should contain digits only.";
+      if (mobile.length !== country.digits) {
+        return `${country.label} mobile numbers should be ${country.digits} digits.`;
+      }
+
+      const passwordError = validatePassword(password);
+      if (passwordError) return passwordError;
+    }
+
+    return "";
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    const validationError = getValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       if (isLoginMode) {
-        if (!email || !password) {
-          throw new Error("Please fill in all fields.");
-        }
-        await login(email, password);
-        onClose();
+        await login(form.email.trim(), form.password);
       } else {
-        if (!firstName || !lastName || !email || !password || !mobile || !dob) {
-          throw new Error("Please fill in all fields.");
-        }
-        // Mobile number validation (matches backend regex: ^\+\d{1,3}\d{10}$)
-        const cleanedMobile = mobile.trim();
-        if (!/^\+\d{1,3}\d{10}$/.test(cleanedMobile)) {
-          throw new Error("Mobile number must start with a country code followed by 10 digits (e.g. +911234567890).");
-        }
-        // Date of Birth validation & formatting (backend supports DD/MM/YYYY or YYYY-MM-DD)
-        // If input is YYYY-MM-DD from HTML date picker, let's keep it or convert it.
-        // It accepts YYYY-MM-DD directly, so that's perfect.
-        const formattedDob = dob; // e.g. "1995-12-31"
-
-        const fullName = `${firstName.trim()} ${lastName.trim()}`;
-        
         await register({
-          name: fullName,
-          email: email.trim(),
-          password,
-          mobile: cleanedMobile,
-          dob: formattedDob,
+          name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+          email: form.email.trim(),
+          password: form.password,
+          mobile: `${country.code}${form.mobile.trim()}`,
+          dob: form.dob,
         });
-        onClose();
       }
+      closeAndReset();
     } catch (err) {
       console.error(err);
-      const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setError(detail.map((d) => d.msg).join(", "));
-      } else {
-        setError(detail || err.message || "An authentication error occurred.");
-      }
+      setError(formatApiError(err, "An authentication error occurred."));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const switchMode = () => {
+    setAuthModalMode(isLoginMode ? "signup" : "login");
+    setError("");
+    setShowPassword(false);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* 🔥 DARK OVERLAY */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={closeAndReset}
       />
 
-      {/* 🔥 MODAL */}
       <div className="relative z-10 w-full max-w-md bg-white rounded-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-        {/* CLOSE BUTTON */}
         <button
-          onClick={onClose}
+          type="button"
+          onClick={closeAndReset}
+          aria-label="Close authentication modal"
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer"
         >
           <X size={18} />
         </button>
 
-        {/* TITLE */}
         <h2 className="text-xl font-semibold text-center text-gray-800 mb-2">
-          {isLoginMode ? "Sign in to AdVid" : "Create your account"}
+          {title}
         </h2>
 
         <p className="text-center text-gray-500 text-sm mb-6">
           {isLoginMode
-            ? "Welcome back! Please enter your details."
-            : "Welcome! Please fill in the details to get started."}
+            ? "Welcome back. Enter your details to continue."
+            : "Create your account and start with your free credits."}
         </p>
 
         {error && (
-          <div className="mb-4 bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-start gap-2 border border-red-100">
+          <div className="mb-4 bg-red-50 text-red-600 text-sm p-3 rounded-lg flex items-start gap-2 border border-red-100 whitespace-pre-line">
             <AlertCircle size={18} className="shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {/* SIGNUP FIELDS */}
+        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
           {!isLoginMode && (
             <>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <input
                   placeholder="First name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="w-1/2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
+                  value={form.firstName}
+                  onChange={(e) => setField("firstName", e.target.value)}
+                  className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoComplete="given-name"
                 />
                 <input
                   placeholder="Last name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="w-1/2 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
+                  value={form.lastName}
+                  onChange={(e) => setField("lastName", e.target.value)}
+                  className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoComplete="family-name"
                 />
               </div>
 
-              <input
-                placeholder="Mobile (e.g. +911234567890)"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
+              <div className="grid grid-cols-[112px_1fr] gap-2">
+                <select
+                  value={country.code}
+                  onChange={(e) => {
+                    const selected = countryCodes.find((item) => item.code === e.target.value);
+                    setCountry(selected || countryCodes[0]);
+                  }}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  aria-label="Country code"
+                >
+                  {countryCodes.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.label} {item.code}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  placeholder="Mobile number"
+                  value={form.mobile}
+                  onChange={(e) => {
+                    const digitsOnly = e.target.value.replace(/\D/g, "");
+                    setField("mobile", digitsOnly.slice(0, country.digits));
+                  }}
+                  className="min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                />
+              </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 pl-1">Date of Birth</label>
+                <label className="text-xs text-gray-500 pl-1" htmlFor="auth-dob">
+                  Date of Birth
+                </label>
                 <input
+                  id="auth-dob"
                   type="date"
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
+                  value={form.dob}
+                  onChange={(e) => setField("dob", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-700"
-                  required
+                  autoComplete="bday"
                 />
               </div>
             </>
           )}
 
-          {/* COMMON FIELDS */}
           <input
             placeholder="Email address"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={form.email}
+            onChange={(e) => setField("email", e.target.value)}
             className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            required
+            autoComplete="email"
           />
 
-          <input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            required
-          />
+          <div className="relative">
+            <input
+              placeholder="Password"
+              type={showPassword ? "text" : "password"}
+              value={form.password}
+              onChange={(e) => setField("password", e.target.value)}
+              className="w-full border border-slate-200 rounded-lg pl-3 pr-11 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              autoComplete={isLoginMode ? "current-password" : "new-password"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-indigo-600 rounded-md"
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          </div>
 
-          {/* SUBMIT BUTTON */}
           <button
             type="submit"
             disabled={isLoading}
             className="w-full bg-indigo-600 text-white py-2.5 rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2 cursor-pointer disabled:bg-indigo-400"
           >
             {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : isLoginMode ? (
               "Sign In"
             ) : (
-              "Register & Get Started"
+              "Create Account"
             )}
           </button>
         </form>
 
-        {/* TOGGLE MODE */}
         <p className="text-center text-xs text-gray-500 mt-6">
-          {isLoginMode ? "Don't have an account?" : "Already have an account?"}{" "}
+          {isLoginMode ? "Don't have an account?" : "Already have an account?"}
           <button
-            onClick={() => {
-              setIsLoginMode(!isLoginMode);
-              setError("");
-            }}
+            type="button"
+            onClick={switchMode}
             className="text-indigo-600 font-medium hover:underline cursor-pointer ml-1"
           >
-            {isLoginMode ? "Sign up" : "Sign in"}
+            {isLoginMode ? "Create one" : "Sign in"}
           </button>
         </p>
       </div>

@@ -87,7 +87,7 @@ const Result = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(blobURL);
-    } catch (e) {
+    } catch {
       window.open(project.combined_image_url, "_blank");
     }
   };
@@ -105,7 +105,7 @@ const Result = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(blobURL);
-    } catch (e) {
+    } catch {
       window.open(project.video_url, "_blank");
     }
   };
