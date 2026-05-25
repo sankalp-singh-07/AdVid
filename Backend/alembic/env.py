@@ -4,7 +4,7 @@ from alembic import context
 from logging.config import fileConfig
 
 from app.db import Base
-from models import project_model, user_model
+from models import payment_model, project_model, user_model
 
 target_metadata = Base.metadata
 config = context.config

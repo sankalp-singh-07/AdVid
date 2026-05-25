@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from app.db import Base, engine
 from app.schema_sync import ensure_missing_columns
-from routes import auth_route, project_route
+from routes import auth_route, payment_route, project_route
 from app.error_handlers import (
     http_exception_handler,
     integrity_error_handler,
@@ -23,6 +23,7 @@ from utils.logger import get_logger
 
 import models.user_model  # noqa: F401
 import models.project_model  # noqa: F401
+import models.payment_model  # noqa: F401
 
 logger = get_logger("main")
 
@@ -70,6 +71,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.include_router(auth_route.router, prefix="/api")
 app.include_router(project_route.router, prefix="/api")
+app.include_router(payment_route.router, prefix="/api")
 
 
 @app.get("/")

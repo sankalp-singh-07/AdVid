@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     GEMINI_IMAGE_MODEL: str = "gemini-2.5-flash-image"
     GEMINI_VIDEO_MODEL: str = "veo-2.0-generate-002"
 
+    RAZORPAY_KEY_ID: str | None = None
+    RAZORPAY_KEY_SECRET: str | None = None
+    RAZORPAY_TEST_MODE: bool = True
+
     model_config = SettingsConfigDict(env_file=".env")
 
 
