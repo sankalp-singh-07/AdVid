@@ -7,7 +7,14 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from app.db import Base, engine
 from app.schema_sync import ensure_missing_columns
-from routes import auth_route, payment_route, project_route
+from routes import (
+    auth_route,
+    payment_route,
+    project_route,
+    document_route,
+    chat_route,
+    workday_route,
+)
 from app.error_handlers import (
     http_exception_handler,
     integrity_error_handler,
@@ -47,7 +54,7 @@ sentry_sdk.init(
 
 app = FastAPI(
     lifespan=lifespan,
-    title="AIVID",
+    title="Enterprise AI Document Reader",
 )
 
 app.add_middleware(
@@ -72,11 +79,14 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(auth_route.router, prefix="/api")
 app.include_router(project_route.router, prefix="/api")
 app.include_router(payment_route.router, prefix="/api")
+app.include_router(document_route.router, prefix="/api")
+app.include_router(chat_route.router, prefix="/api")
+app.include_router(workday_route.router, prefix="/api")
 
 
 @app.get("/")
 async def root():
-    return {"message": "AiVid backend is running."}
+    return {"message": "Enterprise AI backend is running."}
 
 
 @app.get("/sentry-debug")
