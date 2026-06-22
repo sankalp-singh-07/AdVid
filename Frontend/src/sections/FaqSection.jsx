@@ -7,7 +7,7 @@ export const FaqSection = () => {
     const [openIndex, setOpenIndex] = useState(null);
     return (
         <div className="max-w-2xl mx-auto flex flex-col items-center justify-center px-4 md:px-0">
-            <SectionTitle text1="FAQ's" text2="Frequently asked questions" text3="Everything you need to know about creating AI-powered ad videos with AdVid." />
+            <SectionTitle text1="FAQ's" text2="Frequently Asked Questions" text3="Everything you need to know about setting up and running your private Enterprise Knowledge Assistant." />
             <div className="mt-8">
                 {faqsData.map((faq, index) => (
                     <div className="border-b border-slate-200 py-4 cursor-pointer w-full" key={index} onClick={() => setOpenIndex(openIndex === index ? null : index)}>

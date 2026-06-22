@@ -1,292 +1,157 @@
-import { ChevronRightIcon, SparklesIcon, Play, Pause } from "lucide-react";
+import { ChevronRightIcon, Upload, MessageSquare, ShieldCheck, Database, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useRef, useState } from "react";
+import { motion } from "framer-motion";
 
 export default function HeroSection() {
-
     const navigate = useNavigate();
 
-    const videoRef = useRef(null);
-
-    const [isPlaying, setIsPlaying] = useState(true);
-
-    const handleVideo = () => {
-
-        if (isPlaying) {
-            videoRef.current.pause();
-        } else {
-            videoRef.current.play();
-        }
-
-        setIsPlaying(!isPlaying);
-    };
-
     return (
-        <div className="flex flex-col items-center justify-center text-center bg-[url('/assets/hero-section-dot-image.png')] bg-cover bg-no-repeat overflow-hidden px-6">
+        <div className="flex flex-col items-center justify-center text-center bg-gradient-to-b from-slate-50 to-white overflow-hidden px-6 pt-32 pb-20">
 
             {/* Top Badge */}
-
-            <button
-                onClick={() => navigate("/generate")}
-                className="flex items-center gap-2 rounded-full p-1 pr-3 mt-32 text-indigo-600 bg-indigo-50 border border-indigo-100"
+            <motion.button
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => navigate("/assistant")}
+                className="flex items-center gap-2 rounded-full p-1 pr-3 text-indigo-700 bg-indigo-50 border border-indigo-100 shadow-sm hover:shadow-md transition cursor-pointer"
             >
-                <span className="bg-indigo-600 text-white text-xs px-3.5 py-1 rounded-full">
+                <span className="bg-indigo-600 text-white text-xs px-3.5 py-1 rounded-full font-medium">
                     NEW
                 </span>
-
-                <p className="flex items-center gap-1 text-sm">
-                    <span>Get 10 credits for free</span>
+                <p className="flex items-center gap-1 text-sm font-medium">
+                    <span>Ollama v3 Integration</span>
                     <ChevronRightIcon size={16} />
                 </p>
-            </button>
+            </motion.button>
 
             {/* Heading */}
+            <motion.h1 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-[42px]/tight md:text-[64px]/tight font-extrabold max-w-5xl mt-8 tracking-tight text-slate-900"
+            >
+                Chat with Your{" "}
+                <span className="bg-gradient-to-r from-indigo-600 via-blue-500 to-indigo-400 bg-clip-text text-transparent">
+                    Company's Knowledge
+                </span>
+            </motion.h1>
 
-            <h1 className="text-[38px]/12 md:text-[58px]/15 font-bold max-w-5xl mt-6 tracking-tight">
-                Create stunning{" "}
-                <span className="bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                    AI-powered
-                </span>{" "}
-                advertisement videos
-            </h1>
-
-            <p className="text-base md:text-lg text-slate-600 max-w-2xl mt-5 leading-8">
-                Turn your product images into engaging social media ads,
-                promo videos, and reels using AI automation — fast,
-                modern, and editing-free.
-            </p>
+            <motion.p 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-lg md:text-xl text-slate-600 max-w-3xl mt-6 leading-relaxed"
+            >
+                Upload documents, ask questions in natural language, generate new content, and retrieve accurate answers using AI-powered Retrieval-Augmented Generation.
+            </motion.p>
 
             {/* Buttons */}
-
-            <div className="flex items-center gap-4 mt-8">
-
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-col sm:flex-row items-center gap-4 mt-10"
+            >
                 <button
-                    onClick={() => navigate("/generate")}
-                    className="bg-indigo-600 hover:bg-indigo-700 transition-all duration-300 px-8 py-3 rounded-xl text-white font-medium shadow-lg shadow-indigo-500/20"
+                    onClick={() => navigate("/assistant")}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 transition-all duration-300 px-8 py-4 rounded-xl text-white font-semibold shadow-lg shadow-indigo-600/25 cursor-pointer"
                 >
-                    Get Started
+                    <MessageSquare size={20} />
+                    Start Chat
                 </button>
 
                 <button
-                    onClick={() => navigate("/community")}
-                    className="flex items-center justify-center gap-2 border border-indigo-300 hover:border-indigo-500 px-6 py-3 rounded-xl text-indigo-600 bg-white transition"
+                    onClick={() => navigate("/documents")}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 px-8 py-4 rounded-xl text-slate-700 font-semibold transition cursor-pointer"
                 >
-                    <SparklesIcon size={18} />
-                    <span>Gallery</span>
+                    <Upload size={20} />
+                    Upload Documents
                 </button>
+            </motion.div>
 
-            </div>
+            {/* Hero Graphic Area */}
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4, duration: 0.5 }}
+                className="mt-20 w-full max-w-6xl relative"
+            >
+                {/* Decorative Elements */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-indigo-400/20 blur-[120px] rounded-full pointer-events-none"></div>
 
-            {/* Hero Section */}
-
-            <div className="grid lg:grid-cols-2 gap-8 items-center max-w-6xl w-full mt-16">
-
-                {/* Left Side */}
-
-                <div className="relative">
-
-                    <div className="relative bg-white rounded-[32px] p-4 shadow-[0_20px_60px_rgba(79,70,229,0.12)] border border-slate-100">
-
-                        {/* Video */}
-
-                        <div className="relative overflow-hidden rounded-[24px] bg-black group">
-
-                            <video
-                                ref={videoRef}
-                                className="w-full h-[620px] object-contain rounded-[24px]"
-                                src="/assets/tiger-video.mp4"
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                            />
-
-                            {/* Overlay */}
-
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent"></div>
-
-                            {/* Play Pause Button */}
-
-                            <button
-                                onClick={handleVideo}
-                                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"
-                            >
-
-                                <div className="bg-white/90 backdrop-blur-md p-5 rounded-full shadow-2xl hover:scale-110 transition-all duration-300 cursor-pointer">
-
-                                    {
-                                        isPlaying ? (
-                                            <Pause
-                                                className="text-indigo-600"
-                                                size={40}
-                                            />
-                                        ) : (
-                                            <Play
-                                                className="text-indigo-600 fill-indigo-600 ml-1"
-                                                size={40}
-                                            />
-                                        )
-                                    }
-
+                <div className="grid lg:grid-cols-12 gap-6 relative z-10">
+                    
+                    {/* Main Chat Interface Mockup */}
+                    <div className="lg:col-span-8 bg-white/80 backdrop-blur-xl border border-slate-200 shadow-2xl rounded-2xl overflow-hidden flex flex-col h-[500px]">
+                        <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center gap-3">
+                            <div className="flex gap-1.5">
+                                <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                            </div>
+                            <div className="text-xs font-medium text-slate-500 mx-auto flex items-center gap-2">
+                                <ShieldCheck size={14} className="text-green-500" /> Secure Enterprise Environment
+                            </div>
+                        </div>
+                        <div className="flex-1 p-6 flex flex-col gap-6 overflow-hidden">
+                            {/* User Message */}
+                            <div className="flex items-start gap-4 self-end flex-row-reverse max-w-[80%]">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm shrink-0">
+                                    ME
                                 </div>
-
-                            </button>
-
-                            {/* Top Badge */}
-
-                            <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-sm font-medium shadow-lg text-slate-700">
-                                ✨ AI Generated Video
+                                <div className="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-sm text-sm text-left shadow-md">
+                                    Summarize the Q3 Financial Report and extract the key revenue metrics.
+                                </div>
                             </div>
-
-                            {/* Bottom Text */}
-
-                            <div className="absolute bottom-0 left-0 p-6 text-left text-white">
-
-                                <p className="text-xs opacity-80">
-                                    AI Advertisement Generator
-                                </p>
-
-                                <h3 className="text-2xl font-bold mt-2 leading-tight max-w-sm">
-                                    Turn product images into cinematic videos
-                                </h3>
-
+                            
+                            {/* AI Message */}
+                            <div className="flex items-start gap-4 max-w-[85%]">
+                                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white font-semibold text-sm shrink-0">
+                                    AI
+                                </div>
+                                <div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-sm text-sm text-left text-slate-700 shadow-sm flex flex-col gap-3">
+                                    <p>Based on the <strong>Q3 Financial Report.pdf</strong>, here are the key revenue metrics:</p>
+                                    <ul className="list-disc pl-5 space-y-1">
+                                        <li><strong>Total Revenue:</strong> $12.4M (up 15% YoY)</li>
+                                        <li><strong>Recurring Revenue:</strong> $9.8M</li>
+                                        <li><strong>Net Retention:</strong> 112%</li>
+                                    </ul>
+                                    <div className="flex gap-2 mt-2">
+                                        <span className="text-[10px] font-medium px-2 py-1 bg-slate-100 text-slate-500 rounded-md border border-slate-200 flex items-center gap-1">
+                                            📄 Q3_Financial_Report.pdf (Page 4)
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+                    </div>
 
+                    {/* Right Side Info Cards */}
+                    <div className="lg:col-span-4 flex flex-col gap-6">
+                        <div className="bg-white border border-slate-200 shadow-xl rounded-2xl p-6 text-left flex flex-col justify-center transform hover:-translate-y-1 transition duration-300">
+                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mb-4 border border-blue-100">
+                                <Database size={24} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900">Vector Search</h3>
+                            <p className="text-slate-500 mt-2 text-sm leading-relaxed">
+                                Instantly retrieve exact paragraphs from thousands of internal documents using semantic embeddings.
+                            </p>
                         </div>
 
-                        {/* Input Image Card */}
-
-                        <div className="absolute -left-8 bottom-10 bg-white rounded-2xl shadow-2xl p-2 border border-slate-100 rotate-[-8deg]">
-
-                            <img
-                                className="w-28 h-36 object-cover rounded-xl"
-                                src="/assets/tiger-image.jpeg"
-                                alt="Input Image"
-                            />
-
-                            <div className="mt-2 text-center">
-
-                                <p className="text-[11px] font-semibold text-slate-700">
-                                    Input Image
-                                </p>
-
+                        <div className="bg-gradient-to-br from-indigo-600 to-blue-700 shadow-xl shadow-indigo-600/20 rounded-2xl p-6 text-left text-white flex flex-col justify-center transform hover:-translate-y-1 transition duration-300">
+                            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white mb-4 backdrop-blur-sm border border-white/30">
+                                <Zap size={24} />
                             </div>
-
+                            <h3 className="text-xl font-bold">Local LLM Supported</h3>
+                            <p className="text-indigo-100 mt-2 text-sm leading-relaxed">
+                                Connect to local Ollama models to ensure your proprietary data never leaves your secure network.
+                            </p>
                         </div>
-
-                        {/* AI Arrow */}
-
-                        <div className="absolute left-24 bottom-36 bg-gradient-to-r from-indigo-600 to-pink-500 text-white px-3 py-1 rounded-full text-[11px] font-semibold shadow-xl">
-                            AI → Video
-                        </div>
-
                     </div>
 
                 </div>
-
-                {/* Right Side */}
-
-                <div className="flex flex-col gap-5">
-
-                    {/* Stats Card */}
-
-                    <div className="bg-white rounded-3xl p-6 shadow-lg border border-slate-100 text-left">
-
-                        <div className="flex items-center justify-between">
-
-                            <div>
-
-                                <p className="text-slate-500 text-sm">
-                                    Generated Content
-                                </p>
-
-                                <h3 className="text-3xl font-bold text-slate-800 mt-2">
-                                    +42%
-                                </h3>
-
-                                <p className="text-slate-500 mt-2 leading-7 text-sm">
-                                    Higher engagement with AI-generated
-                                    advertisements and promo videos.
-                                </p>
-
-                            </div>
-
-                            <div className="bg-indigo-100 text-indigo-600 p-3 rounded-2xl">
-                                <SparklesIcon size={26} />
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                    {/* Gradient Card */}
-
-                    <div className="bg-gradient-to-r from-indigo-600 via-purple-500 to-pink-500 rounded-3xl p-7 text-left text-white shadow-[0_20px_50px_rgba(168,85,247,0.25)]">
-
-                        <p className="text-sm opacity-80">
-                            AI Automation
-                        </p>
-
-                        <h3 className="text-3xl font-bold mt-3 leading-tight">
-                            Generate social media ads in seconds
-                        </h3>
-
-                        <p className="mt-3 opacity-90 leading-7 text-sm">
-                            Create ad creatives optimized for Instagram,
-                            TikTok, YouTube, and marketing campaigns.
-                        </p>
-
-                        <div className="flex flex-wrap gap-3 mt-6">
-
-                            <span className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-xs">
-                                Instagram Reels
-                            </span>
-
-                            <span className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-xs">
-                                YouTube Ads
-                            </span>
-
-                            <span className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-xs">
-                                HD Export
-                            </span>
-
-                        </div>
-
-                    </div>
-
-                    {/* Platform Card */}
-
-                    <div className="bg-white rounded-3xl p-5 shadow-lg border border-slate-100 text-left">
-
-                        <div className="flex items-center gap-4">
-
-                            <img
-                                className="w-16 h-16 rounded-2xl object-cover"
-                                src="https://images.unsplash.com/photo-1611162618071-b39a2ec055fb?q=80&w=500&auto=format&fit=crop"
-                                alt="Social Media"
-                            />
-
-                            <div>
-
-                                <h4 className="text-xl font-semibold text-slate-800">
-                                    Multi Platform Ready
-                                </h4>
-
-                                <p className="text-slate-500 mt-1 text-sm leading-6">
-                                    Export ads optimized for Instagram,
-                                    TikTok, YouTube Shorts, and more.
-                                </p>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
+            </motion.div>
         </div>
     );
 }

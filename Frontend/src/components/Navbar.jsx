@@ -11,7 +11,7 @@ export default function Navbar() {
   const { isLoggedIn, user, logout, openAuthModal } = useAuth();
 
   const activeLinks = isLoggedIn
-    ? [...navLinks, { name: "My Generations", href: "/my-generations" }]
+    ? [...navLinks, { name: "Dashboard", href: "/dashboard" }]
     : navLinks;
 
   useEffect(() => {

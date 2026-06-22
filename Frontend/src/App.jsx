@@ -8,10 +8,9 @@ import AIAssistant from "./pages/AIAssistant";
 import DocumentExplorer from "./pages/DocumentExplorer";
 import Dashboard from "./pages/Dashboard";
 import WorkdayExplorer from "./pages/WorkdayExplorer";
+import Features from "./pages/Features";
+import PricingPage from "./pages/PricingPage";
 
-import Community from "./pages/Community";
-import Plans from "./pages/Plans";
-import Loading from "./pages/Loading";
 import { useAuth } from "./context/AuthContext";
 
 export default function App() {
@@ -37,9 +36,12 @@ export default function App() {
                 transition={{ duration: 0.4 }}
                 className="h-full w-full"
             >
+                <ScrollToTop />
                 <Routes location={location}>
-                    {/* Public route */}
+                    {/* Public routes */}
                     <Route path="/" element={<Home />} />
+                    <Route path="/features" element={<Features />} />
+                    <Route path="/pricing" element={<PricingPage />} />
                     
                     {/* Enterprise routes wrapped in Sidebar Layout */}
                     <Route element={<Layout />}>
@@ -51,14 +53,10 @@ export default function App() {
                         <Route path="/workday" element={<WorkdayExplorer />} />
                         <Route path="/generator" element={<div className="p-8"><h1>Document Generator</h1><p>Under construction.</p></div>} />
                         <Route path="/settings" element={<div className="p-8"><h1>Settings</h1><p>Under construction.</p></div>} />
-                        
-                        {/* Old routes retained for now if needed, or point them somewhere */}
-                        <Route path="/community" element={<Community />} />
-                        <Route path="/plans" element={<Plans />} />
                     </Route>
 
                     {/* Catch all */}
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </MotionDiv>
         </AnimatePresence>
