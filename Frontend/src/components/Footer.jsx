@@ -28,9 +28,8 @@ export default function Footer() {
                     </Link>
 
                     <p className="mt-6">
-                        Create high-converting ad videos from your product images using AI.
-                        Designed for creators, marketers, and businesses to launch ads
-                        faster and smarter.
+                        Secure, enterprise-grade AI Document Reader and Knowledge Assistant.
+                        Upload documents, ask questions in natural language, and retrieve accurate answers with complete source citations.
                     </p>
                 </div>
 
@@ -67,8 +66,8 @@ export default function Footer() {
                         </h2>
 
                         <div className="space-y-2">
-                            <p>+91-114-214-1714</p>
-                            <p>advid@example.com</p>
+                            <p>+1-800-KNOW-RAG</p>
+                            <p>support@intellectrag.com</p>
                         </div>
                     </div>
 
@@ -86,7 +85,7 @@ export default function Footer() {
                         })
                     }
                 >
-                    AdVid
+                    IntellectRAG
                 </Link>. All Rights Reserved.
             </p>
         </footer>
