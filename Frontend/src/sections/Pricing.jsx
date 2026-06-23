@@ -41,10 +41,10 @@ export default function Pricing() {
     ];
 
     return (
-        <section className="py-24 bg-gradient-to-b from-white to-slate-50 relative overflow-hidden" id="pricing">
+        <section className="py-24 bg-gradient-to-b from-white to-[#FAFBFF] relative overflow-hidden" id="pricing">
             {/* Background elements */}
-            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-200/20 rounded-full blur-[120px] -z-10" />
-            <div className="absolute bottom-10 left-10 w-[300px] h-[300px] bg-blue-200/20 rounded-full blur-[100px] -z-10" />
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-200/10 rounded-full blur-[120px] -z-10" />
+            <div className="absolute bottom-10 left-10 w-[300px] h-[300px] bg-blue-200/10 rounded-full blur-[100px] -z-10" />
 
             <div className="max-w-7xl mx-auto px-6">
                 <SectionTitle 
@@ -54,11 +54,11 @@ export default function Pricing() {
                 />
 
                 {/* Billing Toggle */}
-                <div className="flex justify-center items-center gap-4 mt-12 mb-16">
-                    <span className={`text-sm font-medium transition-colors ${!isYearly ? 'text-slate-900 font-semibold' : 'text-slate-500'}`}>Monthly</span>
+                <div className="flex justify-center items-center gap-4 mt-12 mb-16 select-none">
+                    <span className={`text-sm font-semibold transition-colors ${!isYearly ? 'text-slate-800' : 'text-slate-550'}`}>Monthly</span>
                     <button 
                         onClick={() => setIsYearly(!isYearly)}
-                        className="relative w-14 h-8 bg-indigo-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        className="relative w-14 h-8 bg-[#6D5DFC] rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#6D5DFC] focus:ring-offset-2 cursor-pointer"
                         aria-label="Toggle annual billing"
                     >
                         <motion.div 
@@ -67,9 +67,9 @@ export default function Pricing() {
                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         />
                     </button>
-                    <span className={`text-sm font-medium transition-colors flex items-center gap-2 ${isYearly ? 'text-indigo-600 font-semibold' : 'text-slate-500'}`}>
+                    <span className={`text-sm font-semibold transition-colors flex items-center gap-2 ${isYearly ? 'text-[#6D5DFC]' : 'text-slate-500'}`}>
                         Yearly
-                        <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 animate-pulse">Save 20%</span>
+                        <span className="text-xs font-bold text-[#6D5DFC] bg-purple-50 border border-purple-100 rounded-full px-2 py-0.5 animate-pulse">Save 20%</span>
                     </span>
                 </div>
 
@@ -88,47 +88,45 @@ export default function Pricing() {
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.5, delay: index * 0.1 }}
                                 whileHover={{ y: -8, transition: { duration: 0.2 } }}
-                                className={`flex flex-col relative p-8 rounded-3xl border transition-all ${
+                                className={`flex flex-col relative p-8 rounded-3xl border transition-all bg-white ${
                                     plan.mostPopular 
-                                    ? "bg-slate-900 text-white border-indigo-500 shadow-xl shadow-indigo-950/20 backdrop-blur-md" 
-                                    : "bg-white text-slate-900 border-slate-200 shadow-md shadow-slate-100 hover:border-indigo-200"
+                                    ? "border-[#6D5DFC] border-2 shadow-lg shadow-indigo-500/5" 
+                                    : "border-[#E8EAF5] shadow-md shadow-slate-100/60 hover:border-indigo-200"
                                 }`}
                             >
                                 {plan.mostPopular && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs py-1.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full font-bold uppercase tracking-wider shadow-md border border-indigo-400">
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs py-1.5 px-4 bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] text-white rounded-full font-bold uppercase tracking-wider shadow-md">
                                         <Sparkles size={14} />
                                         Most Popular
                                     </div>
                                 )}
 
                                 <div className="mb-6">
-                                    <h3 className="text-xl font-bold tracking-tight">{plan.title}</h3>
+                                    <h3 className="text-xl font-bold tracking-tight text-slate-800">{plan.title}</h3>
                                     <div className="mt-4 flex items-baseline">
-                                        <span className="text-5xl font-extrabold tracking-tight">
+                                        <span className="text-5xl font-extrabold tracking-tight text-slate-850">
                                             ${displayedPrice}
                                         </span>
-                                        <span className={`text-sm ml-2 ${plan.mostPopular ? "text-slate-400" : "text-slate-500"}`}>
+                                        <span className="text-sm ml-2 text-slate-500">
                                             /month
                                         </span>
                                     </div>
-                                    <p className={`text-xs mt-1.5 font-medium ${plan.mostPopular ? 'text-indigo-400' : 'text-slate-500'}`}>
+                                    <p className="text-xs mt-1.5 font-semibold text-slate-500">
                                         {isYearly ? `Billed annually ($${displayedPrice * 12}/yr)` : "Billed monthly"}
                                     </p>
                                 </div>
 
-                                <hr className={`my-6 ${plan.mostPopular ? "border-slate-800" : "border-slate-100"}`} />
+                                <hr className="my-6 border-[#E8EAF5]" />
 
                                 <ul className="space-y-4 flex-1 mb-8">
                                     {plan.features.map((feature, i) => {
                                         const Icon = feature.icon || Check;
                                         return (
                                             <li key={i} className="flex items-start gap-3">
-                                                <div className={`mt-0.5 rounded-full p-0.5 flex items-center justify-center ${
-                                                    plan.mostPopular ? "bg-indigo-500/20 text-indigo-400" : "bg-indigo-50 text-indigo-600"
-                                                }`}>
+                                                <div className="mt-0.5 rounded-full p-0.5 flex items-center justify-center bg-purple-50 text-[#6D5DFC]">
                                                     <Icon size={14} className="stroke-[3]" />
                                                 </div>
-                                                <span className={`text-sm ${plan.mostPopular ? "text-slate-300" : "text-slate-600"}`}>
+                                                <span className="text-sm text-slate-600 font-medium">
                                                     {feature.name}
                                                 </span>
                                             </li>
@@ -137,10 +135,10 @@ export default function Pricing() {
                                 </ul>
 
                                 <button 
-                                    className={`w-full py-4 px-6 rounded-2xl font-semibold text-sm transition-all duration-200 cursor-pointer ${
+                                    className={`w-full py-4 px-6 rounded-2xl font-bold text-sm transition-all duration-200 cursor-pointer ${
                                         plan.mostPopular 
-                                        ? "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30" 
-                                        : "bg-slate-900 hover:bg-slate-800 text-white"
+                                        ? "bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] hover:opacity-95 text-white shadow shadow-indigo-500/10" 
+                                        : "bg-white border border-[#E8EAF5] text-slate-700 hover:bg-purple-50 hover:text-[#6D5DFC] hover:border-[#6D5DFC]/20"
                                     }`}
                                 >
                                     {plan.buttonText}
@@ -151,10 +149,10 @@ export default function Pricing() {
                 </div>
 
                 {/* Toggle Comparison Button */}
-                <div className="flex justify-center mt-20">
+                <div className="flex justify-center mt-20 select-none">
                     <button 
                         onClick={() => setShowComparison(!showComparison)}
-                        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-semibold text-sm border-2 border-indigo-600/10 hover:border-indigo-600/30 px-6 py-3 rounded-xl transition bg-indigo-50/50 cursor-pointer"
+                        className="flex items-center gap-2 text-[#6D5DFC] hover:text-[#8B5CF6] font-bold text-sm border border-[#6D5DFC]/15 hover:border-[#6D5DFC]/30 px-6 py-3 rounded-xl transition bg-purple-50/50 cursor-pointer"
                     >
                         <span>{showComparison ? "Hide Detailed Features" : "Compare All Features"}</span>
                         {showComparison ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -169,32 +167,32 @@ export default function Pricing() {
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
                             transition={{ duration: 0.4, ease: "easeInOut" }}
-                            className="overflow-hidden mt-12 max-w-5xl mx-auto border border-slate-200 rounded-3xl bg-white shadow-lg shadow-slate-100/50"
+                            className="overflow-hidden mt-12 max-w-5xl mx-auto border border-[#E8EAF5] rounded-3xl bg-white shadow-lg shadow-slate-100/30"
                         >
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
-                                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                                        <tr className="border-b border-[#E8EAF5] bg-[#FAFBFF]">
                                             <th className="py-5 px-6 font-bold text-slate-800 text-sm">Feature</th>
                                             <th className="py-5 px-6 font-bold text-slate-800 text-sm w-[22%]">Starter</th>
                                             <th className="py-5 px-6 font-bold text-slate-800 text-sm w-[22%]">Professional</th>
-                                            <th className="py-5 px-6 font-bold text-indigo-600 text-sm w-[22%]">Enterprise</th>
+                                            <th className="py-5 px-6 font-bold text-[#6D5DFC] text-sm w-[22%]">Enterprise</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 text-sm">
+                                    <tbody className="divide-y divide-[#E8EAF5] text-sm">
                                         {comparisonFeatures.map((cat, idx) => (
                                             <tr key={idx} className="contents">
-                                                <tr className="bg-slate-50/30">
-                                                    <td colSpan={4} className="py-3 px-6 font-bold text-slate-500 uppercase tracking-wider text-xs bg-slate-50/50">
+                                                <tr className="bg-[#FAFBFF]/50">
+                                                    <td colSpan={4} className="py-3 px-6 font-bold text-slate-400 uppercase tracking-wider text-[10px] bg-[#FAFBFF]">
                                                         {cat.category}
                                                     </td>
                                                 </tr>
                                                 {cat.features.map((feature, fIdx) => (
-                                                    <tr key={fIdx} className="hover:bg-slate-50/30 transition-colors">
-                                                        <td className="py-4 px-6 font-medium text-slate-700">
+                                                    <tr key={fIdx} className="hover:bg-purple-50/20 transition-colors">
+                                                        <td className="py-4 px-6 font-semibold text-slate-700">
                                                             <div className="flex items-center gap-1.5 group/info relative">
                                                                 {feature.name}
-                                                                <div className="relative cursor-help text-slate-400 hover:text-slate-600 group">
+                                                                <div className="relative cursor-help text-slate-400 hover:text-slate-650 group">
                                                                     <HelpCircle size={14} />
                                                                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 p-2 text-xs bg-slate-800 text-white rounded-lg shadow-lg z-20 text-center leading-relaxed">
                                                                         {feature.info}
@@ -203,14 +201,14 @@ export default function Pricing() {
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="py-4 px-6 text-slate-600">
-                                                            {feature.starter === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.starter === "No" ? <Minus size={16} className="text-slate-300" /> : feature.starter}
+                                                        <td className="py-4 px-6 text-slate-600 font-medium">
+                                                            {feature.starter === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.starter === "No" ? <Minus size={16} className="text-slate-350" /> : feature.starter}
                                                         </td>
-                                                        <td className="py-4 px-6 text-slate-600">
-                                                            {feature.pro === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.pro === "No" ? <Minus size={16} className="text-slate-300" /> : feature.pro}
+                                                        <td className="py-4 px-6 text-slate-600 font-medium">
+                                                            {feature.pro === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.pro === "No" ? <Minus size={16} className="text-slate-350" /> : feature.pro}
                                                         </td>
-                                                        <td className="py-4 px-6 font-semibold text-slate-800">
-                                                            {feature.enterprise === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.enterprise === "No" ? <Minus size={16} className="text-slate-300" /> : feature.enterprise}
+                                                        <td className="py-4 px-6 font-bold text-slate-850">
+                                                            {feature.enterprise === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.enterprise === "No" ? <Minus size={16} className="text-slate-350" /> : feature.enterprise}
                                                         </td>
                                                     </tr>
                                                 ))}

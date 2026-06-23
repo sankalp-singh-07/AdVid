@@ -1,182 +1,673 @@
-import { useState } from "react";
-import { UploadCloud, FileText, Search, Filter, MoreVertical, Clock, User as UserIcon, LayoutGrid, List, MessageSquare, Database, Trash2, ExternalLink, ChevronDown } from "lucide-react";
-
-const dummyDocs = [
-    { id: 1, name: "Employee_Handbook_2026.pdf", type: "PDF", size: "2.4 MB", date: "2 hours ago", uploader: "HR Team", chunks: 145, status: "Indexed", tags: ["Policy", "HR"] },
-    { id: 2, name: "Q3_Financial_Report.xlsx", type: "Excel", size: "1.1 MB", date: "1 day ago", uploader: "Finance", chunks: 89, status: "Indexed", tags: ["Finance", "Q3"] },
-    { id: 3, name: "Engineering_Onboarding.docx", type: "Word", size: "5.6 MB", date: "3 days ago", uploader: "Eng Ops", chunks: 320, status: "Processing", tags: ["Engineering"] },
-    { id: 4, name: "Security_Policies_v3.pdf", type: "PDF", size: "8.2 MB", date: "1 week ago", uploader: "IT Sec", chunks: 412, status: "Indexed", tags: ["Security", "IT"] },
-    { id: 5, name: "Project_Phoenix_Architecture.md", type: "Markdown", size: "125 KB", date: "2 weeks ago", uploader: "Alice J.", chunks: 45, status: "Indexed", tags: ["Engineering", "Architecture"] },
-];
+import { useState, useRef } from "react";
+import { 
+    UploadCloud, FileText, Search, Filter, Clock, User as UserIcon, 
+    LayoutGrid, List, MessageSquare, Database, Trash2, ExternalLink, 
+    ChevronDown, Sparkles, BookOpen, Layers, CheckCircle2, AlertTriangle, 
+    Loader2, Download, Eye, FileSpreadsheet, FileCode, Check, X, 
+    Folder, HelpCircle, ShieldAlert
+} from "lucide-react";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 export default function DocumentExplorer() {
+    // ----------------------------------------------------
+    // State management
+    // ----------------------------------------------------
+    const [documents, setDocuments] = useState([
+        { id: 1, name: "Employee Handbook 2026.pdf", type: "PDF", size: "2.4 MB", date: "2 hours ago", uploader: "HR Team", chunks: 145, status: "Indexed", tags: ["HR", "Policy"], department: "HR" },
+        { id: 2, name: "Q3 Financial Report.xlsx", type: "Excel", size: "1.1 MB", date: "1 day ago", uploader: "Finance", chunks: 89, status: "Indexed", tags: ["Finance", "Q3"], department: "Finance" },
+        { id: 3, name: "Engineering Onboarding.docx", type: "Word", size: "5.6 MB", date: "3 days ago", uploader: "Eng Ops", chunks: 320, status: "Processing", tags: ["Engineering"], department: "Engineering" },
+        { id: 4, name: "Security Policies v3.pdf", type: "PDF", size: "8.2 MB", date: "1 week ago", uploader: "IT Sec", chunks: 412, status: "Indexed", tags: ["Security", "IT"], department: "IT" },
+        { id: 5, name: "Project Phoenix Architecture.md", type: "Markdown", size: "125 KB", date: "2 weeks ago", uploader: "Alice J.", chunks: 45, status: "Indexed", tags: ["Engineering", "Architecture"], department: "Engineering" },
+        { id: 6, name: "Travel Reimbursement SOP.docx", type: "Word", size: "410 KB", date: "3 weeks ago", uploader: "Finance", chunks: 64, status: "Failed", tags: ["Travel", "Finance"], department: "Finance" }
+    ]);
+
     const [viewMode, setViewMode] = useState("grid");
     const [searchQuery, setSearchQuery] = useState("");
+    const [dragActive, setDragActive] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+
+    // Filter states
+    const [selectedDept, setSelectedDept] = useState("All");
+    const [selectedStatus, setSelectedStatus] = useState("All");
+    const [selectedType, setSelectedType] = useState("All");
+
+    // Modal state
+    const [selectedDocForPreview, setSelectedDocForPreview] = useState(null);
+
+    // Refs
+    const fileInputRef = useRef(null);
+
+    // Unique departments, statuses, types for filters
+    const departments = ["All", "HR", "Finance", "Engineering", "IT"];
+    const statuses = ["All", "Indexed", "Processing", "Failed"];
+    const docTypes = ["All", "PDF", "Excel", "Word", "Markdown"];
+
+    // ----------------------------------------------------
+    // Drag & Drop Handlers
+    // ----------------------------------------------------
+    const handleDrag = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === "dragenter" || e.type === "dragover") {
+            setDragActive(true);
+        } else if (e.type === "dragleave") {
+            setDragActive(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            handleFileUpload(e.dataTransfer.files[0]);
+        }
+    };
+
+    const triggerFileInput = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            handleFileUpload(e.target.files[0]);
+        }
+    };
+
+    const handleFileUpload = (file) => {
+        setIsUploading(true);
+        const fileExt = file.name.split('.').pop().toUpperCase();
+        
+        setTimeout(() => {
+            const newDoc = {
+                id: Date.now(),
+                name: file.name,
+                type: fileExt || "PDF",
+                size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+                date: "Just now",
+                uploader: "You",
+                chunks: Math.floor(Math.random() * 200) + 20,
+                status: "Processing",
+                tags: ["Uploaded"],
+                department: "General"
+            };
+
+            setDocuments(prev => [newDoc, ...prev]);
+            setIsUploading(false);
+
+            // Mock auto-indexing progression
+            setTimeout(() => {
+                setDocuments(currentDocs => 
+                    currentDocs.map(d => d.id === newDoc.id ? { ...d, status: "Indexed" } : d)
+                );
+            }, 3000);
+        }, 1500);
+    };
+
+    const handleDeleteDoc = (id) => {
+        setDocuments(documents.filter(d => d.id !== id));
+    };
+
+    const handleQuickAction = (action) => {
+        alert(`Triggered Quick Action: "${action}" across active knowledge base.`);
+    };
+
+    // Filter documents
+    const filteredDocs = documents.filter(doc => {
+        const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                             doc.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+        const matchesDept = selectedDept === "All" || doc.department === selectedDept;
+        const matchesStatus = selectedStatus === "All" || doc.status === selectedStatus;
+        const matchesType = selectedType === "All" || doc.type === selectedType;
+
+        return matchesSearch && matchesDept && matchesStatus && matchesType;
+    });
+
+    // Stats calculations
+    const statsIndexed = documents.filter(d => d.status === "Indexed").length;
+    const statsChunks = documents.reduce((sum, d) => sum + d.chunks, 0);
+    const statsDepts = new Set(documents.map(d => d.department)).size;
+    const statsStorage = "24.8 MB";
+
+    // Dynamic icon selection
+    const getDocIcon = (type) => {
+        switch(type) {
+            case "Excel": return <FileSpreadsheet className="text-emerald-600" size={20} />;
+            case "Markdown": return <FileCode className="text-orange-500" size={20} />;
+            case "Word": return <FileText className="text-blue-600" size={20} />;
+            default: return <FileText className="text-red-500" size={20} />;
+        }
+    };
 
     return (
-        <div className="flex flex-col h-full space-y-6 font-sans">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Document Knowledge Base</h1>
-                    <p className="text-slate-500 mt-1 text-sm">Upload, manage, and chat with your enterprise documents.</p>
-                </div>
+        <div className="min-h-screen bg-[#FAFBFF] text-slate-800 flex flex-col font-sans">
+            {/* Sticky Global Navbar */}
+            <Navbar />
+
+            {/* Main Content Area */}
+            <main className="flex-1 pt-24 pb-20 px-6 md:px-16 lg:px-24 xl:px-32 max-w-7xl mx-auto w-full space-y-12">
                 
-                <button className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors shadow-sm shadow-indigo-600/20">
-                    <UploadCloud size={18} />
-                    Upload Document
-                </button>
-            </div>
-
-            {/* Upload Zone (Always visible at top for easy access) */}
-            <div className="bg-white border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 hover:border-indigo-400 transition-all cursor-pointer group flex flex-col items-center justify-center">
-                <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <UploadCloud size={28} />
+                {/* 1. Page Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-[#E8EAF5] select-none">
+                    <div className="max-w-2xl">
+                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Document Knowledge Base</h1>
+                        <p className="text-[#64748B] mt-2 text-sm md:text-base leading-relaxed">
+                            Upload, organize, search, and interact with enterprise documents using AI-powered retrieval and intelligent search.
+                        </p>
+                    </div>
+                    <button 
+                        onClick={triggerFileInput}
+                        className="px-5 py-3 bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] hover:opacity-95 text-white font-bold rounded-xl shadow-md cursor-pointer transition active:scale-95 flex items-center gap-2 text-sm shrink-0"
+                    >
+                        <UploadCloud size={16} /> Upload Document
+                    </button>
                 </div>
-                <h3 className="text-base font-semibold text-slate-800 mb-1">Drag & Drop files here or click to browse</h3>
-                <p className="text-slate-500 text-sm max-w-lg">
-                    Supported formats: PDF, DOCX, PPTX, TXT, Markdown, CSV, Excel. Files are automatically chunked and vectorized for RAG.
-                </p>
-            </div>
 
-            <div className="flex-1 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col overflow-hidden min-h-[500px]">
-                {/* Toolbar */}
-                <div className="p-4 border-b border-slate-200 flex flex-col lg:flex-row gap-4 justify-between items-center bg-slate-50/50">
-                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                        <div className="relative flex-1 min-w-[200px] lg:min-w-[300px]">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                {/* 2. Drag & Drop Upload Zone */}
+                <div 
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    onClick={triggerFileInput}
+                    className={`bg-white border-2 border-dashed rounded-3xl p-10 text-center transition-all duration-300 cursor-pointer shadow-sm relative group
+                        ${dragActive 
+                            ? "border-[#6D5DFC] bg-purple-50/40 scale-[1.01]" 
+                            : "border-[#E8EAF5] hover:border-[#6D5DFC] hover:bg-purple-50/10"
+                        }
+                    `}
+                >
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange} 
+                        className="hidden" 
+                    />
+                    
+                    <div className="w-16 h-16 bg-purple-50 text-[#6D5DFC] rounded-2xl flex items-center justify-center mb-5 mx-auto group-hover:scale-110 transition-transform shadow-inner border border-purple-100/50">
+                        {isUploading ? (
+                            <Loader2 size={32} className="animate-spin text-[#6D5DFC]" />
+                        ) : (
+                            <UploadCloud size={32} />
+                        )}
+                    </div>
+
+                    <h3 className="text-lg font-bold text-slate-800 mb-1.5">
+                        {isUploading ? "Uploading files..." : "Drag & Drop Documents"}
+                    </h3>
+                    <p className="text-[#64748B] text-xs max-w-lg mx-auto leading-relaxed mb-6">
+                        Supported formats: PDF, DOCX, PPTX, TXT, Markdown, CSV, Excel.
+                    </p>
+
+                    {/* Automatic Vector RAG indicators */}
+                    <div className="flex flex-wrap justify-center gap-4 text-[10px] font-bold text-[#6D5DFC] select-none">
+                        <span className="bg-purple-50 border border-purple-100 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-sm">
+                            <CheckCircle2 size={12} /> Automatic Chunking
+                        </span>
+                        <span className="bg-purple-50 border border-purple-100 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-sm">
+                            <CheckCircle2 size={12} /> Vectorization
+                        </span>
+                        <span className="bg-purple-50 border border-purple-100 rounded-full px-3 py-1 flex items-center gap-1.5 shadow-sm">
+                            <CheckCircle2 size={12} /> RAG Indexing
+                        </span>
+                    </div>
+                </div>
+
+                {/* 3. Stats Section */}
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-6 select-none">
+                    <div className="bg-white border border-[#E8EAF5] rounded-2xl p-5 shadow-sm hover:shadow-md transition">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Documents Indexed</p>
+                        <p className="text-3xl font-extrabold text-slate-850 mt-1">{statsIndexed}</p>
+                    </div>
+                    <div className="bg-white border border-[#E8EAF5] rounded-2xl p-5 shadow-sm hover:shadow-md transition">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Knowledge Chunks</p>
+                        <p className="text-3xl font-extrabold text-slate-850 mt-1">{statsChunks.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white border border-[#E8EAF5] rounded-2xl p-5 shadow-sm hover:shadow-md transition">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Departments</p>
+                        <p className="text-3xl font-extrabold text-slate-850 mt-1">{statsDepts}</p>
+                    </div>
+                    <div className="bg-white border border-[#E8EAF5] rounded-2xl p-5 shadow-sm hover:shadow-md transition">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Storage Used</p>
+                        <p className="text-3xl font-extrabold text-slate-850 mt-1">{statsStorage}</p>
+                    </div>
+                </section>
+
+                {/* 4. Toolbar & Search & Filters */}
+                <section className="bg-white border border-[#E8EAF5] rounded-2xl shadow-sm overflow-hidden p-5 space-y-4 select-none">
+                    <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
+                        {/* Search Bar */}
+                        <div className="relative w-full lg:flex-1">
+                            <span className="absolute inset-y-0 left-3.5 flex items-center text-slate-450">
+                                <Search size={16} />
+                            </span>
                             <input 
                                 type="text"
-                                placeholder="Search documents..."
+                                placeholder="Search documents, policies, SOPs, onboarding guides..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-white rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600/50 focus:border-indigo-600 text-sm shadow-sm"
+                                className="w-full pl-10 pr-4 py-3 bg-[#FAFBFF] border border-[#E8EAF5] rounded-xl focus:outline-none focus:border-[#6D5DFC] focus:ring-1 focus:ring-[#6D5DFC] text-sm shadow-inner placeholder-slate-450 text-slate-850"
                             />
+                            {searchQuery && (
+                                <button onClick={() => setSearchQuery("")} className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-650">
+                                    <X size={16} />
+                                </button>
+                            )}
                         </div>
-                        
-                        {/* Filters */}
-                        <button className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
-                            <Filter className="w-4 h-4 text-slate-500" /> Department <ChevronDown size={14} className="text-slate-400"/>
-                        </button>
-                        <button className="hidden sm:flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
-                            Tags <ChevronDown size={14} className="text-slate-400"/>
-                        </button>
-                        <button className="hidden md:flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 shadow-sm transition-colors">
-                            Owner <ChevronDown size={14} className="text-slate-400"/>
-                        </button>
+
+                        {/* View Toggles */}
+                        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg shrink-0">
+                            <button 
+                                onClick={() => setViewMode("grid")}
+                                className={`p-1.5 rounded-md transition ${viewMode === "grid" ? "bg-white text-[#6D5DFC] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                                title="Grid View"
+                            >
+                                <LayoutGrid size={16} />
+                            </button>
+                            <button 
+                                onClick={() => setViewMode("list")}
+                                className={`p-1.5 rounded-md transition ${viewMode === "list" ? "bg-white text-[#6D5DFC] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                                title="List View"
+                            >
+                                <List size={16} />
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="flex bg-slate-200/50 p-1 rounded-lg border border-slate-200 self-end lg:self-auto shrink-0">
-                        <button 
-                            onClick={() => setViewMode("grid")}
-                            className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                            title="Grid View"
-                        >
-                            <LayoutGrid size={18} />
-                        </button>
-                        <button 
-                            onClick={() => setViewMode("list")}
-                            className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                            title="List View"
-                        >
-                            <List size={18} />
-                        </button>
-                    </div>
-                </div>
+                    {/* Filter selectors */}
+                    <div className="flex flex-wrap items-center gap-4 text-xs font-semibold pt-1 border-t border-[#E8EAF5]">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[#64748B]">Department:</span>
+                            <div className="flex gap-1.5">
+                                {departments.map(d => (
+                                    <button 
+                                        key={d} 
+                                        onClick={() => setSelectedDept(d)}
+                                        className={`px-2.5 py-1 rounded-md transition cursor-pointer border ${selectedDept === d ? "bg-purple-50 text-[#6D5DFC] border-purple-200" : "bg-white border-[#E8EAF5] text-slate-600 hover:bg-slate-50"}`}
+                                    >
+                                        {d}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-                {/* Content Area */}
-                <div className="p-6 overflow-y-auto flex-1 bg-slate-50/30">
-                    {viewMode === "grid" ? (
+                        <div className="flex items-center gap-2 lg:ml-auto">
+                            <span className="text-[#64748B]">Status:</span>
+                            <div className="flex gap-1.5">
+                                {statuses.map(s => (
+                                    <button 
+                                        key={s} 
+                                        onClick={() => setSelectedStatus(s)}
+                                        className={`px-2.5 py-1 rounded-md transition cursor-pointer border ${selectedStatus === s ? "bg-purple-50 text-[#6D5DFC] border-purple-200" : "bg-white border-[#E8EAF5] text-slate-600 hover:bg-slate-50"}`}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <span className="text-[#64748B]">Type:</span>
+                            <div className="flex gap-1.5">
+                                {docTypes.map(t => (
+                                    <button 
+                                        key={t} 
+                                        onClick={() => setSelectedType(t)}
+                                        className={`px-2.5 py-1 rounded-md transition cursor-pointer border ${selectedType === t ? "bg-purple-50 text-[#6D5DFC] border-purple-200" : "bg-white border-[#E8EAF5] text-slate-600 hover:bg-slate-50"}`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* 5. Quick Actions Section */}
+                <section className="space-y-4 select-none">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Sparkles size={14} className="text-[#6D5DFC]" /> Quick Actions
+                    </h3>
+                    <div className="flex flex-wrap gap-2.5">
+                        {[
+                            "Summarize Document", "Chat with Document", "Compare Documents", 
+                            "Generate SOP", "Generate FAQ", "Policy Review", 
+                            "Training Guide", "Meeting Notes"
+                        ].map((action) => (
+                            <button
+                                key={action}
+                                onClick={() => handleQuickAction(action)}
+                                className="px-4 py-2 border border-[#E8EAF5] bg-white hover:bg-purple-50 hover:text-[#6D5DFC] hover:border-[#6D5DFC]/20 text-xs font-bold text-slate-600 rounded-full transition cursor-pointer shadow-xs active:scale-95"
+                            >
+                                {action}
+                            </button>
+                        ))}
+                    </div>
+                </section>
+
+                {/* 6. Document Grid / List */}
+                <section className="space-y-6">
+                    {filteredDocs.length === 0 ? (
+                        /* Empty state illustration */
+                        <div className="flex flex-col items-center justify-center p-16 bg-white border border-[#E8EAF5] rounded-3xl text-center select-none shadow-sm animate-fade-in">
+                            <div className="w-20 h-20 bg-purple-50 border border-purple-100 rounded-full flex items-center justify-center mb-6 text-[#6D5DFC]">
+                                <Folder size={36} />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900">No Documents Yet</h3>
+                            <p className="text-[#64748B] text-sm mt-2 mb-6 max-w-sm leading-relaxed">
+                                Upload your first document to start building your AI-powered knowledge base.
+                            </p>
+                            <button 
+                                onClick={triggerFileInput}
+                                className="px-5 py-3 bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] hover:opacity-95 text-white font-bold rounded-xl shadow-md cursor-pointer transition flex items-center gap-2 text-xs"
+                            >
+                                <UploadCloud size={14} /> Upload Document
+                            </button>
+                        </div>
+                    ) : viewMode === "grid" ? (
+                        /* Premium Grid Layout (4 columns desktop, 2 tablet, 1 mobile) */
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {dummyDocs.map(doc => (
-                                <div key={doc.id} className="bg-white border border-slate-200 rounded-xl p-5 hover:shadow-lg hover:border-indigo-200 transition-all group flex flex-col">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${doc.type === 'PDF' ? 'bg-red-50 text-red-500' : doc.type === 'Excel' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                                            <FileText size={20} />
+                            {filteredDocs.map((doc) => (
+                                <div 
+                                    key={doc.id} 
+                                    className="bg-white border border-[#E8EAF5] hover:border-indigo-200 rounded-2xl p-5 hover:shadow-md transition-all duration-300 flex flex-col group relative"
+                                >
+                                    {/* Top Metadata */}
+                                    <div className="flex justify-between items-start mb-4 select-none">
+                                        <div className="w-10 h-10 bg-[#FAFBFF] border border-[#E8EAF5] rounded-xl flex items-center justify-center shadow-inner">
+                                            {getDocIcon(doc.type)}
                                         </div>
-                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${doc.status === 'Indexed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider
+                                            ${doc.status === "Indexed" ? "bg-emerald-50 text-emerald-700 border-emerald-250" : 
+                                              doc.status === "Processing" ? "bg-purple-50 text-[#6D5DFC] border-purple-200" : 
+                                              "bg-red-50 text-red-700 border-red-250"}
+                                        `}>
                                             {doc.status}
                                         </span>
                                     </div>
-                                    <h3 className="font-semibold text-slate-800 text-sm line-clamp-2 mb-1" title={doc.name}>{doc.name}</h3>
-                                    <p className="text-xs text-slate-500 mb-4 flex items-center gap-2">
-                                        {doc.size} • <Clock size={12}/> {doc.date}
-                                    </p>
-                                    
-                                    <div className="flex items-center gap-1 mb-4 flex-wrap">
-                                        {doc.tags.map((tag, i) => (
-                                            <span key={i} className="text-[10px] font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">{tag}</span>
+
+                                    {/* Mid metadata */}
+                                    <div className="mb-4">
+                                        <h4 className="font-bold text-slate-800 text-sm line-clamp-2 leading-snug group-hover:text-[#6D5DFC] transition-colors" title={doc.name}>
+                                            {doc.name}
+                                        </h4>
+                                        <p className="text-[10px] font-medium text-slate-500 mt-1.5 flex items-center gap-1 select-none">
+                                            <span>{doc.type}</span> • <span>{doc.size}</span> • <Clock size={10} /> <span>{doc.date}</span>
+                                        </p>
+                                    </div>
+
+                                    {/* Tags */}
+                                    <div className="flex flex-wrap gap-1 mb-5 select-none">
+                                        {doc.tags.map((tag, tIdx) => (
+                                            <span 
+                                                key={tIdx} 
+                                                className="text-[9px] font-bold bg-purple-50 text-[#6D5DFC] border border-purple-100 px-2 py-0.5 rounded"
+                                            >
+                                                {tag}
+                                            </span>
                                         ))}
                                     </div>
 
-                                    <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium" title="Indexed Chunks">
-                                            <Database size={14} className="text-indigo-400"/>
-                                            {doc.chunks} chunks
-                                        </div>
+                                    {/* Bottom parameters */}
+                                    <div className="mt-auto border-t border-[#E8EAF5] pt-3.5 flex items-center justify-between text-[11px] font-semibold text-slate-500 select-none mb-4">
                                         <div className="flex items-center gap-1">
-                                            <button className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="Chat with Doc"><MessageSquare size={16}/></button>
-                                            <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="Delete"><Trash2 size={16}/></button>
+                                            <Database size={13} className="text-[#6D5DFC]" />
+                                            <span>{doc.chunks} chunks</span>
                                         </div>
+                                        <span>Dept: {doc.department}</span>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="grid grid-cols-3 gap-1.5 select-none pt-2 border-t border-[#E8EAF5]/65">
+                                        <a 
+                                            href="/assistant"
+                                            className="py-2 text-center text-[10px] font-bold text-[#6D5DFC] bg-purple-50 hover:bg-[#6D5DFC] hover:text-white rounded-lg transition"
+                                        >
+                                            Chat
+                                        </a>
+                                        <button 
+                                            onClick={() => handleOpenPreview(doc)}
+                                            className="py-2 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                                        >
+                                            Preview
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteDoc(doc.id)}
+                                            className="py-2 text-[10px] font-bold text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer flex items-center justify-center"
+                                            title="Delete document"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm">
-                            <table className="w-full text-left text-sm whitespace-nowrap">
-                                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 text-xs uppercase tracking-wider font-semibold">
-                                    <tr>
-                                        <th className="px-6 py-4">Document</th>
-                                        <th className="px-6 py-4">Status</th>
-                                        <th className="px-6 py-4">Chunks</th>
-                                        <th className="px-6 py-4">Uploader</th>
-                                        <th className="px-6 py-4">Date</th>
-                                        <th className="px-6 py-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {dummyDocs.map(doc => (
-                                        <tr key={doc.id} className="hover:bg-slate-50 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${doc.type === 'PDF' ? 'bg-red-50 text-red-500' : doc.type === 'Excel' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                                                        <FileText size={16} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-medium text-slate-800">{doc.name}</div>
-                                                        <div className="text-xs text-slate-500">{doc.size}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${doc.status === 'Indexed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
-                                                    {doc.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-slate-600 font-medium">
-                                                <div className="flex items-center gap-1.5"><Database size={14} className="text-slate-400"/> {doc.chunks}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-slate-500">
-                                                <div className="flex items-center gap-1.5"><UserIcon size={14} className="text-slate-400"/> {doc.uploader}</div>
-                                            </td>
-                                            <td className="px-6 py-4 text-slate-500">
-                                                {doc.date}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button className="px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded flex items-center gap-1 transition"><MessageSquare size={12}/> Chat</button>
-                                                    <button className="px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded flex items-center gap-1 transition"><ExternalLink size={12}/> Open</button>
-                                                    <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition ml-1"><Trash2 size={14}/></button>
-                                                </div>
-                                            </td>
+                        /* Premium List Layout */
+                        <div className="overflow-hidden border border-[#E8EAF5] rounded-3xl bg-white shadow-sm select-none">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr className="bg-[#FAFBFF] border-b border-[#E8EAF5] font-bold text-slate-650 uppercase tracking-wider text-[10px]">
+                                            <th className="py-4.5 px-6">Document Name</th>
+                                            <th className="py-4.5 px-6 w-[15%]">Status</th>
+                                            <th className="py-4.5 px-6 w-[15%]">Chunks</th>
+                                            <th className="py-4.5 px-6 w-[15%]">Uploader</th>
+                                            <th className="py-4.5 px-6 w-[15%]">Dept</th>
+                                            <th className="py-4.5 px-6 text-right w-[15%]">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#E8EAF5] text-slate-700">
+                                        {filteredDocs.map((doc) => (
+                                            <tr key={doc.id} className="hover:bg-purple-50/10 transition-colors group">
+                                                <td className="py-4 px-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-[#FAFBFF] border border-[#E8EAF5] rounded-lg flex items-center justify-center shrink-0">
+                                                            {getDocIcon(doc.type)}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="font-bold text-slate-800 truncate max-w-sm md:max-w-md group-hover:text-[#6D5DFC] transition-colors" title={doc.name}>
+                                                                {doc.name}
+                                                            </div>
+                                                            <div className="text-[10px] text-[#64748B] mt-0.5 font-semibold">
+                                                                {doc.size} • Uploaded {doc.date}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-6">
+                                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider
+                                                        ${doc.status === "Indexed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : 
+                                                          doc.status === "Processing" ? "bg-purple-50 text-[#6D5DFC] border-purple-150" : 
+                                                          "bg-red-50 text-red-700 border-red-200"}
+                                                    `}>
+                                                        {doc.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-6 font-semibold text-slate-650">
+                                                    <div className="flex items-center gap-1.5"><Database size={13} className="text-[#6D5DFC]"/> {doc.chunks}</div>
+                                                </td>
+                                                <td className="py-4 px-6 text-[#64748B] font-semibold">
+                                                    <div className="flex items-center gap-1.5"><UserIcon size={13}/> {doc.uploader}</div>
+                                                </td>
+                                                <td className="py-4 px-6 text-slate-650 font-bold">
+                                                    {doc.department}
+                                                </td>
+                                                <td className="py-4 px-6 text-right">
+                                                    <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a href="/assistant" className="px-2.5 py-1.5 text-[10px] font-bold text-[#6D5DFC] bg-purple-50 hover:bg-[#6D5DFC] hover:text-white rounded-lg transition">Chat</a>
+                                                        <button onClick={() => handleOpenPreview(doc)} className="px-2.5 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition cursor-pointer">Preview</button>
+                                                        <button onClick={() => handleDeleteDoc(doc.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-55 rounded-lg transition cursor-pointer"><Trash2 size={13}/></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
+                </section>
+
+                {/* 7. AI Capabilities section */}
+                <section className="border-t border-[#E8EAF5] pt-12 space-y-6 select-none">
+                    <div className="text-center max-w-xl mx-auto mb-10">
+                        <h3 className="text-2xl font-extrabold text-slate-900 tracking-tight">AI Capabilities</h3>
+                        <p className="text-[#64748B] text-sm mt-2 leading-relaxed">Discover how our grounding and retrieval pipelines transform static text assets into live intelligence.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white border border-[#E8EAF5] rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#6D5DFC] mb-4">
+                                <MessageSquare size={20} />
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-sm mb-2">Document Chat</h4>
+                            <p className="text-[#64748B] text-xs leading-relaxed">Ask questions directly from uploaded documents. Citations ground responses in truth.</p>
+                        </div>
+
+                        <div className="bg-white border border-[#E8EAF5] rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#6D5DFC] mb-4">
+                                <Layers size={20} />
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-sm mb-2">Summarization</h4>
+                            <p className="text-[#64748B] text-xs leading-relaxed">Generate concise bullet summaries instantly, outlining core takeaways and action lists.</p>
+                        </div>
+
+                        <div className="bg-white border border-[#E8EAF5] rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#6D5DFC] mb-4">
+                                <Search size={20} />
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-sm mb-2">Knowledge Retrieval</h4>
+                            <p className="text-[#64748B] text-xs leading-relaxed">Search semantic matches across thousands of pages to extract exact records in milliseconds.</p>
+                        </div>
+
+                        <div className="bg-white border border-[#E8EAF5] rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#6D5DFC] mb-4">
+                                <FileText size={20} />
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-sm mb-2">Document Generation</h4>
+                            <p className="text-[#64748B] text-xs leading-relaxed">Draft structured SOP guides, FAQ sheets, and template policies using vector structures.</p>
+                        </div>
+
+                        <div className="bg-white border border-[#E8EAF5] rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+                            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#6D5DFC] mb-4">
+                                <Layers size={20} />
+                            </div>
+                            <h4 className="font-bold text-slate-800 text-sm mb-2">Multi-Document Analysis</h4>
+                            <p className="text-[#64748B] text-xs leading-relaxed">Cross-reference and contrast multiple documents side-by-side to highlight differentials.</p>
+                        </div>
+
+                        {/* RAG pipeline model statistics */}
+                        <div className="bg-gradient-to-br from-purple-50/50 to-indigo-50/50 border border-purple-100 rounded-2xl p-6 shadow-sm flex flex-col justify-center">
+                            <h4 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-1.5">
+                                <Sparkles size={16} className="text-[#6D5DFC]" /> RAG Ingestion Pipeline
+                            </h4>
+                            <p className="text-slate-650 text-xs leading-relaxed mb-4">
+                                Connected models: Llama 3, nomic-embed-text embeddings, and Qdrant databases.
+                            </p>
+                            <span className="text-[10px] font-bold text-[#6D5DFC] uppercase tracking-wider bg-white rounded-md px-2 py-1 w-max shadow-sm border border-purple-100">
+                                🟢 Platform Status: Active
+                            </span>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            {/* Global Footer */}
+            <Footer />
+
+            {/* ================================================= */}
+            {/* DOCUMENT PREVIEW MODAL                            */}
+            {/* ================================================= */}
+            {selectedDocForPreview && (
+                <div className="fixed inset-0 bg-slate-950/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-3xl border border-[#E8EAF5] overflow-hidden shadow-2xl flex flex-col animate-scale-up max-h-[85vh]">
+                        {/* Modal Header */}
+                        <div className="px-6 py-4.5 border-b border-[#E8EAF5] flex justify-between items-center bg-[#FAFBFF] select-none">
+                            <div className="flex items-center gap-2.5">
+                                <FileText size={18} className="text-red-500" />
+                                <h3 className="font-bold text-slate-900 text-sm md:text-base truncate max-w-md">{selectedDocForPreview.name}</h3>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedDocForPreview(null)}
+                                className="p-1.5 hover:bg-slate-200 text-slate-500 hover:text-slate-700 rounded-lg transition cursor-pointer"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto space-y-5 flex-1 text-slate-700">
+                            {/* Metadata specs */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-[#FAFBFF] border border-[#E8EAF5] rounded-xl p-4 text-xs font-semibold select-none">
+                                <div>
+                                    <span className="text-[#64748B] block mb-0.5">Uploader</span>
+                                    <span className="text-slate-800 font-bold">{selectedDocForPreview.uploader}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[#64748B] block mb-0.5">Upload Date</span>
+                                    <span className="text-slate-800 font-bold">{selectedDocForPreview.date}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[#64748B] block mb-0.5">Chunks Count</span>
+                                    <span className="text-[#6D5DFC] font-bold">{selectedDocForPreview.chunks} chunks</span>
+                                </div>
+                                <div>
+                                    <span className="text-[#64748B] block mb-0.5">Status</span>
+                                    <span className="text-slate-800 font-bold">{selectedDocForPreview.status}</span>
+                                </div>
+                            </div>
+
+                            {/* Summary & doc details */}
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 select-none">
+                                    <Sparkles size={13} className="text-[#6D5DFC]" /> AI-Generated Summary
+                                </h4>
+                                <div className="p-4 bg-purple-50/40 border border-purple-100 rounded-xl text-xs leading-relaxed text-slate-750">
+                                    This document outlines standard operational parameters regarding the "{selectedDocForPreview.name.split('.')[0]}". It details general expectations, department ownership under the {selectedDocForPreview.department} group, and chunk indexes compiled into the vector database.
+                                </div>
+                            </div>
+
+                            {/* Dummy document page */}
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest select-none">Document Contents</h4>
+                                <div className="border border-[#E8EAF5] rounded-xl p-6 bg-slate-50/50 shadow-inner font-serif text-slate-800 leading-relaxed text-sm min-h-[180px] relative select-none">
+                                    <div className="absolute top-2 right-2 w-10 h-10 bg-purple-50 border border-purple-100 rounded flex items-center justify-center text-[10px] font-bold text-[#6D5DFC] font-sans shadow-sm">
+                                        PDF
+                                    </div>
+                                    <p className="text-slate-750 font-sans font-bold border-b border-[#E8EAF5] pb-2 mb-4">
+                                        Section 1.1: General Overview
+                                    </p>
+                                    <p className="mb-4">
+                                        Standard operating procedures require validation and confirmation loops before files are published to production caches. Data parsed by the LangChain framework is chunked into recursive overlap segments.
+                                    </p>
+                                    <p className="text-slate-400 blur-[1px] leading-3 text-[10px]">
+                                        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 border-t border-[#E8EAF5] flex justify-end gap-2 bg-[#FAFBFF] select-none">
+                            <button 
+                                onClick={() => setSelectedDocForPreview(null)}
+                                className="px-4 py-2 border border-slate-350 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                            >
+                                Close
+                            </button>
+                            <a 
+                                href="/assistant"
+                                className="px-4 py-2 bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] text-white rounded-xl text-xs font-bold transition shadow cursor-pointer flex items-center gap-1.5"
+                            >
+                                <MessageSquare size={13} /> Chat With Document
+                            </a>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }

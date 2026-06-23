@@ -42,13 +42,13 @@ export default function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/features" element={<Features />} />
                     <Route path="/pricing" element={<PricingPage />} />
+                    <Route path="/assistant" element={<AIAssistant />} />
+                    <Route path="/documents" element={<DocumentExplorer />} />
+                    <Route path="/upload" element={<DocumentExplorer initialTab="upload" />} />
                     
                     {/* Enterprise routes wrapped in Sidebar Layout */}
                     <Route element={<Layout />}>
                         <Route path="/dashboard" element={<Dashboard />} />
-                        <Route path="/assistant" element={<AIAssistant />} />
-                        <Route path="/documents" element={<DocumentExplorer />} />
-                        <Route path="/upload" element={<DocumentExplorer initialTab="upload" />} />
                         <Route path="/knowledge-base" element={<div className="p-8"><h1>Knowledge Base</h1><p>Under construction.</p></div>} />
                         <Route path="/workday" element={<WorkdayExplorer />} />
                         <Route path="/generator" element={<div className="p-8"><h1>Document Generator</h1><p>Under construction.</p></div>} />
