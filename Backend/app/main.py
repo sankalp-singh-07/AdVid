@@ -31,6 +31,7 @@ import models.user_model      # noqa: F401
 import models.payment_model   # noqa: F401
 import models.document_model  # noqa: F401
 import models.chunk_model     # noqa: F401
+import models.chat_model      # noqa: F401
 
 logger = get_logger("main")
 

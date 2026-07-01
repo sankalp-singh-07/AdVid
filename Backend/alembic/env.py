@@ -5,9 +5,7 @@ from logging.config import fileConfig
 
 from app.db import Base
 
-# ─── Import all models so Alembic can detect them ────────────────────────────
-from models import user_model, payment_model, document_model, chunk_model  # noqa: F401
-# Phase 3 will add: conversation_model
+from models import user_model, payment_model, document_model, chunk_model, chat_model  # noqa: F401
 
 target_metadata = Base.metadata
 config = context.config
