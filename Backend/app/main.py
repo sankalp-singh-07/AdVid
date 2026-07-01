@@ -131,4 +131,4 @@ async def health():
 @app.get("/sentry-debug", include_in_schema=False)
 async def trigger_error():
     """Sentry connectivity test — do not call in production."""
-    1 / 0
+    raise Exception("Sentry integration test")
