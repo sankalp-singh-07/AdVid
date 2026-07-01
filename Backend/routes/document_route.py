@@ -1,17 +1,17 @@
-"""
-Document routes — Phase 2 will replace these stubs with real implementations.
-
-Current state: All endpoints return placeholder responses.
-Every endpoint is auth-protected so the structure is correct from day one.
-"""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, UploadFile, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from models.user_model import User
+from schemas.document_schema import (
+    DocumentResponse,
+    DocumentListResponse,
+    DocumentUpdateMetadata,
+)
 from services.auth_service import get_current_user
+from services.document_service import document_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -19,56 +19,69 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-@router.post("/upload", status_code=202)
+@router.post("/upload", status_code=202, response_model=DocumentResponse)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     current_user: CurrentUser,
     db: DbDep,
     file: UploadFile = File(...),
+    department: str | None = Form(None),
+    owner: str | None = Form(None),
 ):
     """
-    Upload a document to the knowledge base.
-
-    Phase 2 implementation:
-    1. Validate file type and size
-    2. Save file to local storage (STORAGE_PATH)
-    3. Extract text (PDF/DOCX/TXT/PPTX/CSV/Excel)
-    4. Split into semantic chunks via LangChain
-    5. Generate embeddings via Ollama (nomic-embed-text)
-    6. Store vectors in Qdrant with metadata
-    7. Save document record in PostgreSQL
+    Upload a document (PDF, DOCX, TXT, MD, PPTX, CSV, Excel) to the platform.
+    Initiates asynchronous parsing, chunking, embedding, and vector storage.
     """
-    return {
-        "message": "Document upload endpoint — Phase 2 coming soon.",
-        "filename": file.filename,
-        "uploaded_by": current_user.id,
-    }
+    return await document_service.upload_document(
+        file=file,
+        department=department,
+        owner=owner,
+        user=current_user,
+        db=db,
+        background_tasks=background_tasks,
+    )
 
 
-@router.get("", status_code=200)
+@router.get("", status_code=200, response_model=DocumentListResponse)
 async def list_documents(current_user: CurrentUser, db: DbDep):
     """
-    List all documents belonging to the authenticated user.
-
-    Phase 2 implementation:
-    - Query PostgreSQL for user's documents with status and metadata
+    List all documents uploaded by the authenticated user.
     """
-    return {"documents": [], "total": 0}
+    return await document_service.list_documents(user=current_user, db=db)
 
 
-@router.get("/{document_id}", status_code=200)
+@router.get("/{document_id}", status_code=200, response_model=DocumentResponse)
 async def get_document(
     document_id: str,
     current_user: CurrentUser,
     db: DbDep,
 ):
     """
-    Get a specific document by ID.
-
-    Phase 2 implementation:
-    - Fetch document record from PostgreSQL
-    - Return metadata + chunk count + status
+    Retrieve metadata of a specific document.
     """
-    return {"document": None}
+    return await document_service.get_document_by_id(
+        document_id=document_id,
+        user=current_user,
+        db=db,
+    )
+
+
+@router.patch("/{document_id}", status_code=200, response_model=DocumentResponse)
+async def update_document_metadata(
+    document_id: str,
+    metadata_data: DocumentUpdateMetadata,
+    current_user: CurrentUser,
+    db: DbDep,
+):
+    """
+    Update a document's department and owner metadata tags.
+    """
+    return await document_service.update_document_metadata(
+        document_id=document_id,
+        meta_data=metadata_data,
+        user=current_user,
+        db=db,
+    )
 
 
 @router.delete("/{document_id}", status_code=200)
@@ -78,37 +91,22 @@ async def delete_document(
     db: DbDep,
 ):
     """
-    Delete a document and all its associated chunks/vectors.
-
-    Phase 2 implementation:
-    - Delete vectors from Qdrant (filter by document_id)
-    - Delete file from local storage
-    - Delete PostgreSQL record
+    Delete a document from local disk storage, cascade remove its chunks,
+    and erase its vectors from Qdrant vector database.
     """
-    return {"message": "Delete endpoint — Phase 2 coming soon."}
-
-
-@router.patch("/{document_id}", status_code=200)
-async def update_document_metadata(
-    document_id: str,
-    current_user: CurrentUser,
-    db: DbDep,
-):
-    """
-    Update document metadata (title, department, tags).
-
-    Phase 2 implementation:
-    - Update PostgreSQL record
-    - Re-index with updated metadata in Qdrant
-    """
-    return {"message": "Update endpoint — Phase 2 coming soon."}
+    await document_service.delete_document(
+        document_id=document_id,
+        user=current_user,
+        db=db,
+    )
+    return {"message": "Document and all associated chunks deleted successfully."}
 
 
 @router.post("/summarize", status_code=200)
 async def summarize_document(current_user: CurrentUser, db: DbDep):
     """
     Generate an AI summary of a document.
-    Phase 4 implementation — requires Phase 3 (RAG) to be complete first.
+    [Phase 4 AI Features]
     """
     return {"summary": "Summarize endpoint — Phase 4 coming soon."}
 
@@ -117,7 +115,7 @@ async def summarize_document(current_user: CurrentUser, db: DbDep):
 async def compare_documents(current_user: CurrentUser, db: DbDep):
     """
     AI-powered comparison of two documents.
-    Phase 4 implementation.
+    [Phase 4 AI Features]
     """
     return {"comparison": "Compare endpoint — Phase 4 coming soon."}
 
@@ -126,6 +124,6 @@ async def compare_documents(current_user: CurrentUser, db: DbDep):
 async def generate_document(current_user: CurrentUser, db: DbDep):
     """
     Generate a new document (FAQ, Policy, SOP, Meeting Notes).
-    Phase 4 implementation.
+    [Phase 4 AI Features]
     """
     return {"generated": "Generate endpoint — Phase 4 coming soon."}

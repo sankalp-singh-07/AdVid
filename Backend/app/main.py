@@ -29,8 +29,8 @@ from utils.logger import get_logger
 # ─── Import all models so SQLAlchemy can see them ────────────────────────────
 import models.user_model      # noqa: F401
 import models.payment_model   # noqa: F401
-# Phase 2 will add: models.document_model, models.chunk_model
-# Phase 3 will add: models.conversation_model
+import models.document_model  # noqa: F401
+import models.chunk_model     # noqa: F401
 
 logger = get_logger("main")
 
