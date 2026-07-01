@@ -10,10 +10,8 @@ from app.schema_sync import ensure_missing_columns
 from routes import (
     auth_route,
     payment_route,
-    project_route,
     document_route,
     chat_route,
-    workday_route,
 )
 from app.error_handlers import (
     http_exception_handler,
@@ -28,9 +26,11 @@ import sentry_sdk
 from app.config import settings
 from utils.logger import get_logger
 
-import models.user_model  # noqa: F401
-import models.project_model  # noqa: F401
-import models.payment_model  # noqa: F401
+# ─── Import all models so SQLAlchemy can see them ────────────────────────────
+import models.user_model      # noqa: F401
+import models.payment_model   # noqa: F401
+# Phase 2 will add: models.document_model, models.chunk_model
+# Phase 3 will add: models.conversation_model
 
 logger = get_logger("main")
 
@@ -42,6 +42,10 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(ensure_missing_columns)
     logger.info("Database tables verified/created.")
+
+    # Phase 2: Qdrant collection initialisation will go here
+    # Phase 3: Redis connection check will go here
+
     yield
     logger.info("Shutting down.")
 
@@ -51,12 +55,17 @@ sentry_sdk.init(
     send_default_pii=True,
 )
 
-
 app = FastAPI(
     lifespan=lifespan,
-    title="Enterprise AI Document Reader",
+    title="Enterprise AI Knowledge Platform",
+    description=(
+        "RAG-powered document intelligence platform. "
+        "Upload documents, search semantically, chat with your knowledge base."
+    ),
+    version="2.0.0",
 )
 
+# ─── CORS ────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -69,6 +78,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Error Handlers ───────────────────────────────────────────────────────────
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(IntegrityError, integrity_error_handler)
@@ -76,19 +86,29 @@ app.add_exception_handler(OperationalError, operational_error_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
+# ─── Routes ───────────────────────────────────────────────────────────────────
 app.include_router(auth_route.router, prefix="/api")
-app.include_router(project_route.router, prefix="/api")
-app.include_router(payment_route.router, prefix="/api")
 app.include_router(document_route.router, prefix="/api")
 app.include_router(chat_route.router, prefix="/api")
-app.include_router(workday_route.router, prefix="/api")
+app.include_router(payment_route.router, prefix="/api")
 
 
-@app.get("/")
+@app.get("/", tags=["health"])
 async def root():
-    return {"message": "Enterprise AI backend is running."}
+    return {
+        "message": "Enterprise AI Knowledge Platform is running.",
+        "version": "2.0.0",
+        "docs": "/docs",
+    }
 
 
-@app.get("/sentry-debug")
+@app.get("/health", tags=["health"])
+async def health():
+    """Health check endpoint for load balancers / uptime monitors."""
+    return {"status": "ok"}
+
+
+@app.get("/sentry-debug", include_in_schema=False)
 async def trigger_error():
-    division_by_zero = 1 / 0
+    """Sentry connectivity test — do not call in production."""
+    1 / 0
