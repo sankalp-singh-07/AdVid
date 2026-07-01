@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     # ─── Core ────────────────────────────────────────────────────────────────
     ENVIRONMENT: str = "development"
     SENTRY_DSN: str = "sentry-dsn"
+    FRONTEND_URLS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8000"]
 
     # ─── Database ─────────────────────────────────────────────────────────────
     DB_URL: str = "postgresql+asyncpg://dummyData/dummyDb"

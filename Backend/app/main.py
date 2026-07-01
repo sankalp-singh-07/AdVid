@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 
 from app.db import Base, engine
-from app.schema_sync import ensure_missing_columns
 from routes import (
     auth_route,
     payment_route,
@@ -39,12 +38,9 @@ logger = get_logger("main")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up — environment: %s", settings.ENVIRONMENT)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(ensure_missing_columns)
-    logger.info("Database tables verified/created.")
+    logger.info("Database migrations should be managed by Alembic.")
 
-    # Initialise vector database collection
+    # Initialise vector database collection - qdrant initialize 
     try:
         from services.vectorstore_service import vectorstore_service
         await vectorstore_service.ensure_collection()
@@ -59,7 +55,7 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to connect to Redis on startup: %s", e)
 
     yield
-    
+    # now after yield run everything when the app stops
     # Shutdown hooks
     try:
         from services.redis_service import redis_service
@@ -88,11 +84,7 @@ app = FastAPI(
 # ─── CORS ────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=settings.FRONTEND_URLS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -128,7 +120,8 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/sentry-debug", include_in_schema=False)
-async def trigger_error():
-    """Sentry connectivity test — do not call in production."""
-    raise Exception("Sentry integration test")
+if settings.ENVIRONMENT == "development":
+    @app.get("/sentry-debug", include_in_schema=False)
+    async def trigger_error():
+        """Sentry connectivity test — do not call in production."""
+        raise Exception("Sentry integration test")

@@ -1,11 +1,3 @@
-# ─── Subscription Plans ────────────────────────────────────────────────────────
-#
-# These plans map to the frontend Pricing page.
-# cost is in USD cents (Razorpay works in smallest currency unit).
-# doc_limit: max documents the user can upload (-1 = unlimited)
-# query_limit: max AI queries per month (-1 = unlimited)
-# storage_mb: storage quota in MB (-1 = unlimited)
-#
 plans = {
     "starter": {
         "plan": "Starter",
