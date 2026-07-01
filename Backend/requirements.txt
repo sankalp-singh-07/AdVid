@@ -76,3 +76,4 @@ annotated-types==0.7.0
 ecdsa==0.19.2
 dnspython==2.8.0
 h11==0.16.0
+cloudinary>=1.41.0

@@ -47,8 +47,15 @@ async def run_ingestion_pipeline(document_id: str, user_id: str):
             await db.refresh(doc)
 
             # 2. Extract text page-by-page
-            abs_path = storage_service.get_absolute_path(doc.storage_path)
-            pages = text_extractor.extract_text(abs_path, doc.file_type)
+            temp_path = await storage_service.download_temp_file(doc.storage_path, doc.file_type)
+            try:
+                pages = text_extractor.extract_text(temp_path, doc.file_type)
+            finally:
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception as clean_err:
+                        logger.warning("Failed to remove temp file %s: %s", temp_path, clean_err)
 
             # 3. Split into semantic chunks
             chunks = chunker_service.chunk_document(pages)
@@ -139,12 +146,11 @@ class DocumentService:
         doc_id = str(uuid.uuid4())
         
         # Save file to storage
-        relative_path = await storage_service.save_file(user.id, doc_id, file, ext)
+        storage_result = await storage_service.save_file(user.id, doc_id, file, ext)
+        relative_path = storage_result["url"]
+        file_size = storage_result["size"]
 
         try:
-            # Get file size
-            abs_path = storage_service.get_absolute_path(relative_path)
-            file_size = os.path.getsize(abs_path)
 
             # Create document database entry
             doc = Document(

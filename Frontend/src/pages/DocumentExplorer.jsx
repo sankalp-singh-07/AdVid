@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
     UploadCloud, FileText, Search, Filter, Clock, User as UserIcon, 
     LayoutGrid, List, MessageSquare, Database, Trash2, ExternalLink, 
@@ -8,20 +8,14 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import api from "../utils/api";
 
 export default function DocumentExplorer() {
     // ----------------------------------------------------
     // State management
     // ----------------------------------------------------
-    const [documents, setDocuments] = useState([
-        { id: 1, name: "Employee Handbook 2026.pdf", type: "PDF", size: "2.4 MB", date: "2 hours ago", uploader: "HR Team", chunks: 145, status: "Indexed", tags: ["HR", "Policy"], department: "HR" },
-        { id: 2, name: "Q3 Financial Report.xlsx", type: "Excel", size: "1.1 MB", date: "1 day ago", uploader: "Finance", chunks: 89, status: "Indexed", tags: ["Finance", "Q3"], department: "Finance" },
-        { id: 3, name: "Engineering Onboarding.docx", type: "Word", size: "5.6 MB", date: "3 days ago", uploader: "Eng Ops", chunks: 320, status: "Processing", tags: ["Engineering"], department: "Engineering" },
-        { id: 4, name: "Security Policies v3.pdf", type: "PDF", size: "8.2 MB", date: "1 week ago", uploader: "IT Sec", chunks: 412, status: "Indexed", tags: ["Security", "IT"], department: "IT" },
-        { id: 5, name: "Project Phoenix Architecture.md", type: "Markdown", size: "125 KB", date: "2 weeks ago", uploader: "Alice J.", chunks: 45, status: "Indexed", tags: ["Engineering", "Architecture"], department: "Engineering" },
-        { id: 6, name: "Travel Reimbursement SOP.docx", type: "Word", size: "410 KB", date: "3 weeks ago", uploader: "Finance", chunks: 64, status: "Failed", tags: ["Travel", "Finance"], department: "Finance" }
-    ]);
-
+    const [documents, setDocuments] = useState([]);
+    const [loadingDocs, setLoadingDocs] = useState(true);
     const [viewMode, setViewMode] = useState("grid");
     const [searchQuery, setSearchQuery] = useState("");
     const [dragActive, setDragActive] = useState(false);
@@ -39,9 +33,69 @@ export default function DocumentExplorer() {
     const fileInputRef = useRef(null);
 
     // Unique departments, statuses, types for filters
-    const departments = ["All", "HR", "Finance", "Engineering", "IT"];
+    const departments = ["All", "HR", "Finance", "Engineering", "IT", "General"];
     const statuses = ["All", "Indexed", "Processing", "Failed"];
     const docTypes = ["All", "PDF", "Excel", "Word", "Markdown"];
+
+    const mapDoc = (backendDoc) => {
+        const type = (backendDoc.file_type || ".pdf").substring(1).toUpperCase();
+        let status = "Processing";
+        if (backendDoc.status === "ready") status = "Indexed";
+        if (backendDoc.status === "failed") status = "Failed";
+        
+        const sizeInMB = backendDoc.file_size ? `${(backendDoc.file_size / (1024 * 1024)).toFixed(1)} MB` : "0.0 MB";
+
+        let dateStr = "Recently";
+        try {
+            const d = new Date(backendDoc.created_at);
+            dateStr = d.toLocaleDateString() + " " + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        } catch (e) {}
+
+        return {
+            id: backendDoc.id,
+            name: backendDoc.original_filename,
+            type: type,
+            size: sizeInMB,
+            date: dateStr,
+            uploader: backendDoc.owner || "You",
+            chunks: backendDoc.chunk_count || 0,
+            status: status,
+            tags: [backendDoc.department || "General"],
+            department: backendDoc.department || "General",
+            error_message: backendDoc.error_message,
+            rawSize: backendDoc.file_size || 0
+        };
+    };
+
+    const fetchDocuments = async (showLoading = false) => {
+        if (showLoading) setLoadingDocs(true);
+        try {
+            const response = await api.get("/documents");
+            const mapped = (response.data.documents || []).map(mapDoc);
+            setDocuments(mapped);
+        } catch (error) {
+            console.error("Failed to fetch documents:", error);
+        } finally {
+            if (showLoading) setLoadingDocs(false);
+        }
+    };
+
+    // Load documents on mount
+    useEffect(() => {
+        fetchDocuments(true);
+    }, []);
+
+    // Poll status if any documents are Processing
+    useEffect(() => {
+        const hasProcessing = documents.some(d => d.status === "Processing");
+        if (!hasProcessing) return;
+
+        const interval = setInterval(() => {
+            fetchDocuments(false);
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [documents]);
 
     // ----------------------------------------------------
     // Drag & Drop Handlers
@@ -76,42 +130,44 @@ export default function DocumentExplorer() {
         }
     };
 
-    const handleFileUpload = (file) => {
+    const handleFileUpload = async (file) => {
         setIsUploading(true);
-        const fileExt = file.name.split('.').pop().toUpperCase();
-        
-        setTimeout(() => {
-            const newDoc = {
-                id: Date.now(),
-                name: file.name,
-                type: fileExt || "PDF",
-                size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-                date: "Just now",
-                uploader: "You",
-                chunks: Math.floor(Math.random() * 200) + 20,
-                status: "Processing",
-                tags: ["Uploaded"],
-                department: "General"
-            };
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("department", "General");
+        formData.append("owner", "You");
 
-            setDocuments(prev => [newDoc, ...prev]);
+        try {
+            const response = await api.post("/documents/upload", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            const newDocMapped = mapDoc(response.data);
+            setDocuments(prev => [newDocMapped, ...prev]);
+        } catch (error) {
+            console.error("Upload failed:", error);
+            alert("File upload failed. Please try again.");
+        } finally {
             setIsUploading(false);
-
-            // Mock auto-indexing progression
-            setTimeout(() => {
-                setDocuments(currentDocs => 
-                    currentDocs.map(d => d.id === newDoc.id ? { ...d, status: "Indexed" } : d)
-                );
-            }, 3000);
-        }, 1500);
+        }
     };
 
-    const handleDeleteDoc = (id) => {
-        setDocuments(documents.filter(d => d.id !== id));
+    const handleDeleteDoc = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this document?")) return;
+        try {
+            await api.delete(`/documents/${id}`);
+            setDocuments(documents.filter(d => d.id !== id));
+        } catch (error) {
+            console.error("Delete failed:", error);
+            alert("Failed to delete document.");
+        }
     };
 
     const handleQuickAction = (action) => {
         alert(`Triggered Quick Action: "${action}" across active knowledge base.`);
+    };
+
+    const handleOpenPreview = (doc) => {
+        setSelectedDocForPreview(doc);
     };
 
     // Filter documents
@@ -129,7 +185,8 @@ export default function DocumentExplorer() {
     const statsIndexed = documents.filter(d => d.status === "Indexed").length;
     const statsChunks = documents.reduce((sum, d) => sum + d.chunks, 0);
     const statsDepts = new Set(documents.map(d => d.department)).size;
-    const statsStorage = "24.8 MB";
+    const totalStorageBytes = documents.reduce((sum, d) => sum + d.rawSize, 0);
+    const statsStorage = `${(totalStorageBytes / (1024 * 1024)).toFixed(1)} MB`;
 
     // Dynamic icon selection
     const getDocIcon = (type) => {
@@ -630,24 +687,7 @@ export default function DocumentExplorer() {
                                 </div>
                             </div>
 
-                            {/* Dummy document page */}
-                            <div className="space-y-2">
-                                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest select-none">Document Contents</h4>
-                                <div className="border border-[#E8EAF5] rounded-xl p-6 bg-slate-50/50 shadow-inner font-serif text-slate-800 leading-relaxed text-sm min-h-[180px] relative select-none">
-                                    <div className="absolute top-2 right-2 w-10 h-10 bg-purple-50 border border-purple-100 rounded flex items-center justify-center text-[10px] font-bold text-[#6D5DFC] font-sans shadow-sm">
-                                        PDF
-                                    </div>
-                                    <p className="text-slate-750 font-sans font-bold border-b border-[#E8EAF5] pb-2 mb-4">
-                                        Section 1.1: General Overview
-                                    </p>
-                                    <p className="mb-4">
-                                        Standard operating procedures require validation and confirmation loops before files are published to production caches. Data parsed by the LangChain framework is chunked into recursive overlap segments.
-                                    </p>
-                                    <p className="text-slate-400 blur-[1px] leading-3 text-[10px]">
-                                        Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.
-                                    </p>
-                                </div>
-                            </div>
+                            {/* Actual document preview placeholder (or we can just omit since this was a mock modal) */}
                         </div>
 
                         {/* Modal Footer */}

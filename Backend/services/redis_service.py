@@ -10,36 +10,52 @@ class RedisService:
     """
     Manages caching operations using Redis.
     Provides fallback to bypass cache if Redis connection is offline/failed.
+    Supports Upstash serverless Redis via REST API.
     """
 
     def __init__(self):
         self.redis_url = settings.REDIS_URL
+        self.upstash_url = settings.UPSTASH_REDIS_REST_URL
+        self.upstash_token = settings.UPSTASH_REDIS_REST_TOKEN
         self.client = None
         self.is_connected = False
-        logger.info("RedisService initialising with url: %s", self.redis_url)
+
+        if self.upstash_url and self.upstash_token:
+            logger.info("RedisService initialising with Upstash REST: %s", self.upstash_url)
+        else:
+            logger.info("RedisService initialising with url: %s", self.redis_url)
 
     async def connect(self) -> bool:
         """
         Attempts connection to Redis. Returns True if successful.
         """
         try:
-            self.client = aioredis.from_url(
-                self.redis_url, 
-                encoding="utf-8", 
-                decode_responses=True,
-                socket_connect_timeout=2.0
-            )
-            # Ping check
-            await self.client.ping()
-            self.is_connected = True
-            logger.info("Successfully connected to Redis.")
-            return True
+            if self.upstash_url and self.upstash_token:
+                from upstash_redis.asyncio import Redis as UpstashRedis
+                self.client = UpstashRedis(
+                    url=self.upstash_url, token=self.upstash_token
+                )
+                await self.client.ping()
+                self.is_connected = True
+                logger.info("Successfully connected to Upstash Redis.")
+                return True
+            else:
+                self.client = aioredis.from_url(
+                    self.redis_url,
+                    encoding="utf-8",
+                    decode_responses=True,
+                    socket_connect_timeout=2.0,
+                )
+                await self.client.ping()
+                self.is_connected = True
+                logger.info("Successfully connected to standard Redis.")
+                return True
         except Exception as e:
             self.is_connected = False
             self.client = None
             logger.warning(
-                "Redis connection failed. Running in cache-bypass mode. Error: %s", 
-                e
+                "Redis connection failed. Running in cache-bypass mode. Error: %s",
+                e,
             )
             return False
 
@@ -55,8 +71,10 @@ class RedisService:
             if not val:
                 return None
             try:
+                if isinstance(val, (dict, list)):
+                    return val
                 return json.loads(val)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, TypeError):
                 return val
         except Exception as e:
             logger.warning("Redis GET failed for key '%s': %s", key, e)
@@ -96,10 +114,13 @@ class RedisService:
         """Closes Redis connection pool."""
         if self.client:
             try:
-                await self.client.close()
+                # Upstash REST client doesn't need explicit close
+                if not (self.upstash_url and self.upstash_token):
+                    await self.client.close()
                 logger.info("Redis connection closed.")
             except Exception as e:
                 logger.warning("Error closing Redis connection: %s", e)
 
 
 redis_service = RedisService()
+

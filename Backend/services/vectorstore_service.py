@@ -39,7 +39,18 @@ class VectorStoreService:
                         distance=qmodels.Distance.COSINE
                     )
                 )
-                logger.info("Successfully created Qdrant collection.")
+                # Create indexes on user_id and document_id to optimize filtering queries
+                await self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="user_id",
+                    field_schema=qmodels.PayloadSchemaType.KEYWORD
+                )
+                await self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="document_id",
+                    field_schema=qmodels.PayloadSchemaType.KEYWORD
+                )
+                logger.info("Successfully created Qdrant collection and payload indexes.")
             else:
                 logger.debug("Qdrant collection '%s' already exists.", self.collection_name)
         except Exception as e:
@@ -152,15 +163,15 @@ class VectorStoreService:
 
         try:
             logger.info("Searching similarity in Qdrant (limit=%d, document_scope=%s)", limit, document_id)
-            results = await self.client.search(
+            results = await self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 query_filter=query_filter,
                 limit=limit
             )
 
             hits = []
-            for hit in results:
+            for hit in results.points:
                 hits.append({
                     "id": hit.id,
                     "score": hit.score,

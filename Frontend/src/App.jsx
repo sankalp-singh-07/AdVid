@@ -7,11 +7,18 @@ import Home from "./pages/Home";
 import AIAssistant from "./pages/AIAssistant";
 import DocumentExplorer from "./pages/DocumentExplorer";
 import Dashboard from "./pages/Dashboard";
-import WorkdayExplorer from "./pages/WorkdayExplorer";
 import Features from "./pages/Features";
 import PricingPage from "./pages/PricingPage";
 
 import { useAuth } from "./context/AuthContext";
+
+function ProtectedRoute({ children }) {
+    const { isLoggedIn } = useAuth();
+    if (!isLoggedIn) {
+        return <Navigate to="/" replace />;
+    }
+    return children;
+}
 
 export default function App() {
     const location = useLocation();
@@ -42,15 +49,16 @@ export default function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/features" element={<Features />} />
                     <Route path="/pricing" element={<PricingPage />} />
-                    <Route path="/assistant" element={<AIAssistant />} />
-                    <Route path="/documents" element={<DocumentExplorer />} />
-                    <Route path="/upload" element={<DocumentExplorer initialTab="upload" />} />
+                    
+                    {/* Protected routes */}
+                    <Route path="/assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
+                    <Route path="/documents" element={<ProtectedRoute><DocumentExplorer /></ProtectedRoute>} />
+                    <Route path="/upload" element={<ProtectedRoute><DocumentExplorer initialTab="upload" /></ProtectedRoute>} />
                     
                     {/* Enterprise routes wrapped in Sidebar Layout */}
                     <Route element={<Layout />}>
                         <Route path="/dashboard" element={<Dashboard />} />
                         <Route path="/knowledge-base" element={<div className="p-8"><h1>Knowledge Base</h1><p>Under construction.</p></div>} />
-                        <Route path="/workday" element={<WorkdayExplorer />} />
                         <Route path="/generator" element={<div className="p-8"><h1>Document Generator</h1><p>Under construction.</p></div>} />
                         <Route path="/settings" element={<div className="p-8"><h1>Settings</h1><p>Under construction.</p></div>} />
                     </Route>

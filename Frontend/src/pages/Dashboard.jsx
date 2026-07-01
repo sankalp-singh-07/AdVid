@@ -1,11 +1,35 @@
+import { useEffect, useState } from "react";
 import { FileText, MessageSquare, Users, Activity } from "lucide-react";
+import api from "../utils/api";
 
 export default function Dashboard() {
+    const [data, setData] = useState({
+        total_documents: 0,
+        total_conversations: 0,
+        credits: 100,
+        system_health: "99.9%"
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const response = await api.get("/documents/dashboard/stats");
+                setData(response.data);
+            } catch (err) {
+                console.error("Failed to fetch dashboard stats:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
+    }, []);
+
     const stats = [
-        { title: "Total Documents", value: "2,543", icon: FileText, change: "+12% this month", trend: "up" },
-        { title: "AI Conversations", value: "14,092", icon: MessageSquare, change: "+24% this month", trend: "up" },
-        { title: "Active Users", value: "482", icon: Users, change: "+5% this month", trend: "up" },
-        { title: "System Health", value: "99.9%", icon: Activity, change: "Optimal", trend: "neutral" },
+        { title: "Total Documents", value: loading ? "..." : data.total_documents, icon: FileText, change: "Real-time sync", trend: "neutral" },
+        { title: "AI Conversations", value: loading ? "..." : data.total_conversations, icon: MessageSquare, change: "Real-time sync", trend: "neutral" },
+        { title: "Available Credits", value: loading ? "..." : data.credits, icon: Users, change: "Assigned by system", trend: "neutral" },
+        { title: "System Health", value: loading ? "..." : data.system_health, icon: Activity, change: "Optimal", trend: "neutral" },
     ];
 
     return (

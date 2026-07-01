@@ -1,10 +1,14 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Navigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../context/AuthContext";
 import AuthModal from "./AuthModal";
 
 export default function Layout() {
-    const { isAuthModalOpen, closeAuthModal, authModalMode } = useAuth();
+    const { isLoggedIn, isAuthModalOpen, closeAuthModal, authModalMode } = useAuth();
+
+    if (!isLoggedIn) {
+        return <Navigate to="/" replace />;
+    }
 
     return (
         <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans">

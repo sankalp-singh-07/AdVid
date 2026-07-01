@@ -21,10 +21,6 @@ const navItems = [
     { name: "Upload Document", href: "/upload", icon: UploadCloud },
     { name: "My Documents", href: "/documents", icon: FileText },
     { name: "AI Assistant", href: "/assistant", icon: MessageSquare },
-    { name: "Knowledge Base", href: "/knowledge-base", icon: Database },
-    { name: "Workday Explorer", href: "/workday", icon: Briefcase },
-    { name: "Document Generator", href: "/generator", icon: PenTool },
-    { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 export default function Sidebar() {

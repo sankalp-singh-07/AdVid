@@ -33,12 +33,19 @@ class Settings(BaseSettings):
 
     # ─── Redis Cache ──────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379"
+    UPSTASH_REDIS_REST_URL: str | None = None
+    UPSTASH_REDIS_REST_TOKEN: str | None = None
     REDIS_TTL_SECONDS: int = 3600   # default cache TTL = 1 hour
 
     # ─── Local File Storage ───────────────────────────────────────────────────
     # All uploaded documents are stored here. Mount a persistent volume in prod.
     STORAGE_PATH: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
+
+    # ─── Cloudinary Storage ───────────────────────────────────────────────────
+    CLOUDINARY_CLOUD_NAME: str | None = None
+    CLOUDINARY_API_KEY: str | None = None
+    CLOUDINARY_API_SECRET: str | None = None
 
     # ─── Razorpay (Subscription / Billing) ────────────────────────────────────
     RAZORPAY_KEY_ID: str | None = None

@@ -7,93 +7,70 @@ import {
     Info, BookOpen, Layers, Settings, Trash
 } from "lucide-react";
 import Navbar from "../components/Navbar";
+import api from "../utils/api";
 
 export default function AIAssistant() {
     // ----------------------------------------------------
     // State definitions
     // ----------------------------------------------------
-    const [documentCount, setDocumentCount] = useState(124); // 0 simulates empty state
-    const [chunkCount, setChunkCount] = useState(12458);
-    const [storageUsed, setStorageUsed] = useState(24.8); // In MB
+    const [documentCount, setDocumentCount] = useState(0);
+    const [chunkCount, setChunkCount] = useState(0);
+    const [storageUsed, setStorageUsed] = useState(0);
 
-    // Initial conversation states
-    const [conversations, setConversations] = useState([
-        {
-            id: "c1",
-            title: "Leave Policy Discussion",
-            group: "Today",
-            isPinned: true,
-            isFavorite: true,
-            messages: [
-                { id: "msg-1-1", role: "user", content: "What are the rules for annual leaves?" },
-                { 
-                    id: "msg-1-2", 
-                    role: "assistant", 
-                    retrievedCount: 5,
-                    docCount: 3,
-                    content: "According to the **HR Leave Policy**, employees are entitled to standard annual paid leave quotas:\n\n| Leave Type | Allocation | Roll-over Max | Approval Required |\n| ---------- | ---------- | ------------- | ----------------- |\n| Annual Leave | 18 days | 5 days | Manager Approval |\n| Sick Leave | 10 days | 0 days | Self-Certified |\n| Parental Leave | 12 weeks | 0 days | HR Approval |\n\nHere are the key guidelines for request submissions:\n1. **Submission Window**: Submit requests via the employee portal at least 2 weeks in advance.\n2. **Roll-over rules**: A maximum of 5 unused annual leave days can roll over to the next calendar year. Excess days are forfeited.\n3. **Emergency Sick Leave**: Must be reported before 9:00 AM on the day of absence.\n\nLet me know if you would like me to generate a template SOP or draft a policy review.",
-                    citations: [
-                        { id: 101, title: "HR_Policy.pdf", page: 12, excerpt: "Employees are eligible for 18 paid leaves annually. A maximum of 5 days can roll over.", confidence: 96 },
-                        { id: 102, title: "Employee_Handbook.pdf", page: 18, excerpt: "Remote work is available subject to manager approval. Emergency leaves must be logged before 9:00 AM.", confidence: 93 }
-                    ]
-                }
-            ]
-        },
-        {
-            id: "c2",
-            title: "Travel Reimbursement",
-            group: "Today",
-            isPinned: false,
-            isFavorite: false,
-            messages: [
-                { id: "msg-2-1", role: "user", content: "What is the per diem cap for meals?" },
-                { 
-                    id: "msg-2-2", 
-                    role: "assistant", 
-                    retrievedCount: 3,
-                    docCount: 2,
-                    content: "The **Travel Policy** specifies limits on travel-related meal reimbursements:\n\n* **Per Diem Cap**: $75 per day within North America ($100 international).\n* **Alcohol**: Reimbursement for alcohol is prohibited except for authorized corporate events.\n* **Receipts**: Required for any expense above $25.\n\nExpenses must be uploaded to the portal within 30 days of returning from travel.",
-                    citations: [
-                        { id: 103, title: "Travel_Policy_v2.docx", page: 3, excerpt: "Reimbursement for meals is capped at $75 per diem inside the US.", confidence: 94 }
-                    ]
-                }
-            ]
-        },
-        {
-            id: "c3",
-            title: "Onboarding Process",
-            group: "Yesterday",
-            isPinned: false,
-            isFavorite: false,
-            messages: []
-        },
-        {
-            id: "c4",
-            title: "Finance SOP",
-            group: "Yesterday",
-            isPinned: false,
-            isFavorite: false,
-            messages: []
-        },
-        {
-            id: "c5",
-            title: "Security Standards",
-            group: "Last Week",
-            isPinned: false,
-            isFavorite: false,
-            messages: []
-        },
-        {
-            id: "c6",
-            title: "Employee Handbook",
-            group: "Last Week",
-            isPinned: false,
-            isFavorite: false,
-            messages: []
-        }
-    ]);
+    const [conversations, setConversations] = useState([]);
+    const [activeChatId, setActiveChatId] = useState(null);
 
-    const [activeChatId, setActiveChatId] = useState("c1");
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const docRes = await api.get("/documents");
+                const docs = docRes.data || [];
+                setDocumentCount(docs.length);
+                let chunks = 0, size = 0;
+                docs.forEach(d => { chunks += d.chunks || 0; size += d.size || 0; });
+                setChunkCount(chunks);
+                setStorageUsed(Number((size / (1024 * 1024)).toFixed(2)));
+
+                const histRes = await api.get("/chat/history");
+                const sortedHistory = (histRes.data || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                const mappedChats = sortedHistory.map(c => ({
+                    id: c.id,
+                    title: c.title || "New Chat",
+                    group: "History",
+                    isPinned: false,
+                    isFavorite: false,
+                    messages: []
+                }));
+                setConversations(mappedChats);
+                if (mappedChats.length > 0) setActiveChatId(mappedChats[0].id);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchInitialData();
+    }, []);
+
+    useEffect(() => {
+        if (!activeChatId || String(activeChatId).startsWith("c-")) return;
+        const fetchMessages = async () => {
+            try {
+                const res = await api.get(`/chat/history/${activeChatId}`);
+                if (res.data && res.data.messages) {
+                    const loaded = res.data.messages.map(m => ({
+                        id: m.id, role: m.role, content: m.content, citations: m.citations || [],
+                        retrievedCount: m.citations ? m.citations.length : 0,
+                        docCount: m.citations ? new Set(m.citations.map(c => c.title)).size : 0
+                    }));
+                    setConversations(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: loaded } : c));
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        const chat = conversations.find(c => c.id === activeChatId);
+        if (chat && chat.messages.length === 0) fetchMessages();
+    }, [activeChatId, conversations]);
+
     const [searchQuery, setSearchQuery] = useState("");
     const [input, setInput] = useState("");
     
@@ -158,12 +135,15 @@ export default function AIAssistant() {
         setShowMobileSidebar(false);
     };
 
-    const handleDeleteChat = (e, chatId) => {
+    const handleDeleteChat = async (e, chatId) => {
         e.stopPropagation();
-        const nextChats = conversations.filter(c => c.id !== chatId);
-        setConversations(nextChats);
-        if (activeChatId === chatId) {
-            setActiveChatId(nextChats.length > 0 ? nextChats[0].id : null);
+        try {
+            if (!String(chatId).startsWith("c-")) await api.delete(`/chat/${chatId}`);
+            const nextChats = conversations.filter(c => c.id !== chatId);
+            setConversations(nextChats);
+            if (activeChatId === chatId) setActiveChatId(nextChats.length > 0 ? nextChats[0].id : null);
+        } catch (error) {
+            console.error("Failed to delete chat", error);
         }
     };
 
@@ -227,72 +207,69 @@ export default function AIAssistant() {
         handleSend(null, `${toolName} request for active documents`);
     };
 
-    const handleSend = (e, customText = null) => {
+    const handleSend = async (e, customText = null) => {
         if (e) e.preventDefault();
         const text = customText || input;
         if (!text.trim() && !attachment && !isLoading) return;
-        if (!activeChatId) return;
+        
+        const currentChatId = activeChatId;
+        const contentWithAttachment = attachment ? `[Attached: ${attachment.name}]\n\n${text}` : text;
+        const userMessage = { id: `msg-user-${Date.now()}`, role: "user", content: contentWithAttachment };
 
-        const contentWithAttachment = attachment 
-            ? `[Attached: ${attachment.name}]\n\n${text}`
-            : text;
-
-        const userMessage = { 
-            id: `msg-user-${Date.now()}`, 
-            role: "user", 
-            content: contentWithAttachment 
-        };
-
-        // Append user message
-        setConversations(conversations.map(c => {
-            if (c.id === activeChatId) {
-                const updatedTitle = c.messages.length === 0 
-                    ? (text.slice(0, 24) + (text.length > 24 ? "..." : ""))
-                    : c.title;
-
-                return {
-                    ...c,
-                    title: updatedTitle,
-                    messages: [...c.messages, userMessage]
+        let isNewChat = false;
+        if (!currentChatId || String(currentChatId).startsWith("c-")) {
+            isNewChat = true;
+            if (currentChatId) {
+                setConversations(conversations.map(c => c.id === currentChatId ? { ...c, title: text.slice(0, 24) + "...", messages: [...c.messages, userMessage] } : c));
+            } else {
+                const newLocalChat = {
+                    id: `c-${Date.now()}`, title: text.slice(0, 24) + "...", group: "History",
+                    isPinned: false, isFavorite: false, messages: [userMessage]
                 };
+                setConversations([newLocalChat, ...conversations]);
+                setActiveChatId(newLocalChat.id);
             }
-            return c;
-        }));
+        } else {
+            setConversations(conversations.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, userMessage] } : c));
+        }
 
         setInput("");
         removeAttachment();
         setIsLoading(true);
-
-        // Perplexity-style loading steps
         setLoadingStep("Searching Documents...");
-        setTimeout(() => {
-            setLoadingStep("Retrieving Sources...");
-            setTimeout(() => {
-                setLoadingStep("Generating Response...");
-                setTimeout(() => {
-                    const aiMessage = {
-                        id: `msg-ai-${Date.now()}`,
-                        role: "assistant",
-                        retrievedCount: 5,
-                        docCount: 3,
-                        content: "Based on the company files, remote work availability is subject to **manager approval** and alignment with department operational hours:\n\n* **Approval Process**: Staff must log requests via HRIS under section 7.4.\n* **Workplace Standards**: Remote locations must adhere to ergonomic and data security guidelines.\n* **Core Hours**: Dedicated overlap window is required from 10:00 AM to 4:00 PM EST.\n\nLet me know if you would like to generate a standard SOP draft for travel approvals or list FAQ guidelines.",
-                        citations: [
-                            { id: 201, title: "Employee_Handbook.pdf", page: 18, excerpt: "Remote work is available subject to manager approval. Core team hours require coordination.", confidence: 93 },
-                            { id: 202, title: "HR_Policy.pdf", page: 14, excerpt: "Working hours should match core delivery needs from 10:00 to 16:00.", confidence: 89 }
-                        ]
-                    };
 
-                    setConversations(prev => prev.map(c => 
-                        c.id === activeChatId 
-                            ? { ...c, messages: [...c.messages, aiMessage] }
-                            : c
-                    ));
-                    setIsLoading(false);
-                    setLoadingStep("");
-                    setSelectedTool(null);
-                }, 800);
-            }, 800);
-        }, 600);
+        try {
+            const requestPayload = {
+                query: contentWithAttachment,
+                conversation_id: (!currentChatId || String(currentChatId).startsWith("c-")) ? null : currentChatId
+            };
+            const response = await api.post("/chat", requestPayload);
+            const data = response.data;
+
+            const aiMessage = {
+                id: data.id || `msg-ai-${Date.now()}`, role: "assistant", content: data.response, citations: data.citations || [],
+                retrievedCount: data.citations ? data.citations.length : 0,
+                docCount: data.citations ? new Set(data.citations.map(c => c.title)).size : 0
+            };
+
+            const newServerChatId = data.conversation_id;
+            setConversations(prev => prev.map(c => {
+                if (c.id === currentChatId || c.id === activeChatId) {
+                    return { ...c, id: newServerChatId || c.id, messages: [...c.messages, aiMessage], title: isNewChat ? (text.slice(0, 24) + "...") : c.title };
+                }
+                return c;
+            }));
+
+            if (isNewChat && newServerChatId) setActiveChatId(newServerChatId);
+        } catch (error) {
+            console.error(error);
+            const errorMsg = { id: `msg-err-${Date.now()}`, role: "assistant", content: "**Error:** Failed to connect to backend.", citations: [] };
+            setConversations(prev => prev.map(c => (c.id === currentChatId || c.id === activeChatId) ? { ...c, messages: [...c.messages, errorMsg] } : c));
+        } finally {
+            setIsLoading(false);
+            setLoadingStep("");
+            setSelectedTool(null);
+        }
     };
 
     const handleRegenerate = () => {
@@ -362,12 +339,9 @@ export default function AIAssistant() {
 
     // Group remaining chats by groups
     const groupedChats = {
-        "Today": unpinnedChats.filter(c => c.group === "Today"),
-        "Yesterday": unpinnedChats.filter(c => c.group === "Yesterday"),
-        "Last Week": unpinnedChats.filter(c => c.group === "Last Week")
+        "History": unpinnedChats
     };
 
-    // Get citations for right panel
     const lastAssistantMsg = activeChat?.messages
         ?.slice()
         ?.reverse()
@@ -739,10 +713,7 @@ export default function AIAssistant() {
                         <div className="flex items-center gap-2">
                             {/* Document Index Control to Toggle Empty State */}
                             <button 
-                                onClick={() => {
-                                    const nextCount = documentCount === 0 ? 124 : 0;
-                                    setDocumentCount(nextCount);
-                                }}
+                                onClick={() => {}}
                                 className="text-[10px] font-bold text-slate-500 hover:text-[#6D5DFC] hover:bg-purple-50 border border-[#E8EAF5] px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer bg-white shadow-sm"
                                 title="Toggle zero document state"
                             >
@@ -1211,25 +1182,6 @@ export default function AIAssistant() {
                                 <span className="bg-slate-100 px-2 py-1 rounded">Page {previewDoc.page} Reference</span>
                             </div>
 
-                            {/* Dummy document visualization page */}
-                            <div className="border border-[#E8EAF5] rounded-xl bg-[#FAFBFF] p-6 font-serif leading-relaxed text-sm shadow-inner relative">
-                                <div className="absolute top-2 right-2 w-10 h-10 bg-purple-50 border border-purple-100 rounded flex items-center justify-center text-[10px] font-bold text-[#6D5DFC] font-sans select-none shadow-sm">
-                                    PDF
-                                </div>
-                                
-                                <p className="text-slate-400 select-none blur-[1px] leading-3 text-[10px] mb-4">
-                                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.
-                                </p>
-                                
-                                <div className="p-4 bg-yellow-50 border-l-4 border-amber-400 rounded-r-lg text-slate-800 font-medium font-sans my-4 shadow-sm animate-fade-in">
-                                    <span className="text-[10px] font-bold text-amber-700 uppercase block mb-1 select-none">Highlighted segment matching query:</span>
-                                    "{previewDoc.excerpt}"
-                                </div>
-
-                                <p className="text-slate-400 select-none blur-[1px] leading-3 text-[10px] mt-4">
-                                    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.
-                                </p>
-                            </div>
                         </div>
 
                         {/* Footer controls */}

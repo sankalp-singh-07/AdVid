@@ -8,7 +8,6 @@ from models.user_model import User
 from schemas.chat_schema import (
     ChatRequest,
     ChatResponse,
-    ConversationResponse,
     ConversationDetailResponse,
     RegenerateRequest,
 )
