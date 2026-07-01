@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { Bot, Network, Search, FileText, FileSignature, HelpCircle, Layers, Lock, Link as LinkIcon, SplitSquareHorizontal, Database, Globe, DatabaseZap, Box, Cpu, ArrowRight } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 export default function Features() {
+    const navigate = useNavigate();
     const features = [
         { icon: Bot, title: "AI Chat with Documents", desc: "Interact with your enterprise documents naturally." },
         { icon: Network, title: "Retrieval-Augmented Generation (RAG)", desc: "Ground AI responses in factual company data." },
@@ -129,7 +131,10 @@ export default function Features() {
                 </div>
 
                 <div className="text-center">
-                    <button className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-4 rounded-xl shadow-lg shadow-indigo-600/25 transition-all hover:-translate-y-0.5">
+                    <button 
+                        onClick={() => navigate('/documents')}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-4 rounded-xl shadow-lg shadow-indigo-600/25 transition-all hover:-translate-y-0.5 cursor-pointer"
+                    >
                         Start Building Your AI Knowledge Hub
                     </button>
                 </div>

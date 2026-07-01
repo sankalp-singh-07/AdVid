@@ -4,8 +4,9 @@ import {
     Plus, Copy, RotateCcw, PanelRightClose, PanelRightOpen, History,
     Search, Trash2, Edit3, Check, X, Paperclip, AlertCircle, RefreshCw,
     Pin, Star, Database, Cpu, Activity, Mic, MicOff, FolderOpen, Layout,
-    Info, BookOpen, Layers, Settings, Trash
+    Info, BookOpen, Layers, Settings, Trash, ChevronDown
 } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import api from "../utils/api";
 
@@ -20,11 +21,16 @@ export default function AIAssistant() {
     const [conversations, setConversations] = useState([]);
     const [activeChatId, setActiveChatId] = useState(null);
 
+    const location = useLocation();
+    const [allDocuments, setAllDocuments] = useState([]);
+    const [selectedContextDocId, setSelectedContextDocId] = useState(location.state?.document_id || "");
+
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
                 const docRes = await api.get("/documents");
                 const docs = docRes.data || [];
+                setAllDocuments(docs);
                 setDocumentCount(docs.length);
                 let chunks = 0, size = 0;
                 docs.forEach(d => { chunks += d.chunks || 0; size += d.size || 0; });
@@ -42,13 +48,20 @@ export default function AIAssistant() {
                     messages: []
                 }));
                 setConversations(mappedChats);
-                if (mappedChats.length > 0) setActiveChatId(mappedChats[0].id);
+                
+                // If we came with an initial query and a document, trigger it
+                if (location.state?.initial_query && location.state?.document_id) {
+                    // Handled separately below, just ensure we create a new chat
+                    handleNewChat();
+                } else if (mappedChats.length > 0) {
+                    setActiveChatId(mappedChats[0].id);
+                }
             } catch (err) {
                 console.error(err);
             }
         };
         fetchInitialData();
-    }, []);
+    }, [location.state]);
 
     useEffect(() => {
         if (!activeChatId || String(activeChatId).startsWith("c-")) return;
@@ -241,7 +254,8 @@ export default function AIAssistant() {
         try {
             const requestPayload = {
                 query: contentWithAttachment,
-                conversation_id: (!currentChatId || String(currentChatId).startsWith("c-")) ? null : currentChatId
+                conversation_id: (!currentChatId || String(currentChatId).startsWith("c-")) ? null : currentChatId,
+                document_id: selectedContextDocId || null
             };
             const response = await api.post("/chat", requestPayload);
             const data = response.data;
@@ -695,17 +709,25 @@ export default function AIAssistant() {
                                 <h2 className="font-extrabold text-slate-850 text-sm md:text-base leading-tight">
                                     {activeChat ? activeChat.title : "Enterprise Copilot"}
                                 </h2>
-                                {/* Under-title RAG active status (Light purple badges) */}
+                                {/* Under-title RAG active status and Knowledge Source Selector */}
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="flex items-center gap-1.5 text-[9px] font-bold text-[#6D5DFC] bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-0.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-[#6D5DFC] animate-pulse"></span> RAG Active
                                     </span>
-                                    <span className="text-[9px] font-bold text-[#6D5DFC] bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-0.5">
-                                        Vector DB Connected
-                                    </span>
-                                    <span className="text-[9px] font-bold text-[#6D5DFC] bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-0.5">
-                                        Ollama Online
-                                    </span>
+                                    <div className="relative inline-block text-[9px] font-bold text-[#6D5DFC] bg-purple-50 border border-purple-100 rounded-lg px-2.5 py-0.5 group">
+                                        <select 
+                                            value={selectedContextDocId}
+                                            onChange={(e) => setSelectedContextDocId(e.target.value)}
+                                            className="bg-transparent appearance-none pr-4 outline-none cursor-pointer max-w-[150px] truncate"
+                                            title="Knowledge Source"
+                                        >
+                                            <option value="">Knowledge Source: All Documents</option>
+                                            {allDocuments.map(doc => (
+                                                <option key={doc.id} value={doc.id}>{doc.original_filename}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-purple-700 transition" />
+                                    </div>
                                 </div>
                             </div>
                         </div>

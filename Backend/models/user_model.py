@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, String, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -23,6 +23,9 @@ class User(Base):
     # ─── Status ───────────────────────────────────────────────────────────────
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
+    )
+    credits: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=100, server_default="100"
     )
     # role: "user" | "admin" — reserved for RBAC in future
     role: Mapped[str] = mapped_column(

@@ -187,6 +187,14 @@ class ChatService:
         Primary execution thread. Resolves conversation thread, gathers history,
         runs query through RAG pipeline, saves messages, and returns answer with citations.
         """
+        # 0. Check and deduct credits
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalars().first()
+        if not user or user.credits < 1:
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits for AI Chat.")
+        user.credits -= 1
+        db.add(user)
+
         # 1. Resolve conversation thread
         conv = await self.get_or_create_conversation(
             user_id=user_id,
@@ -253,7 +261,15 @@ class ChatService:
         Erases the last assistant response, retrieves the last user prompt,
         re-runs retrieval/generation, and saves the new answer.
         """
-        # Fetch conversation
+        # 0. Check and deduct credits
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalars().first()
+        if not user or user.credits < 1:
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits to regenerate message.")
+        user.credits -= 1
+        db.add(user)
+
+        # 1. Fetch conversation
         conv = await self.get_conversation_detail(conversation_id, user_id, db)
         if not conv.messages:
             raise HTTPException(

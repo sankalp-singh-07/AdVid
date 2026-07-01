@@ -2,7 +2,6 @@ import { MenuIcon, XIcon, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { navLinks } from "../data/navLinks";
-import logo from "../assets/logo.png";
 import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
@@ -29,12 +28,13 @@ export default function Navbar() {
       className={`flex items-center justify-between fixed z-50 top-0 w-full px-6 md:px-16 lg:px-24 xl:px-32 py-4 border-b border-slate-200 bg-white/40 ${openMobileMenu ? "bg-white/80" : "backdrop-blur"}`}
     >
       {/* Logo */}
-      <Link to="/">
-        <img
-          className="h-8 sm:h-9 md:h-6 w-auto shrink-0"
-          src={logo}
-          alt="Logo"
-        />
+      <Link to="/" className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#6D5DFC] to-[#8B5CF6] flex items-center justify-center text-white font-bold text-lg shadow-sm">
+          I
+        </div>
+        <span className="font-extrabold text-xl tracking-tight text-slate-800">
+          Intellect<span className="text-[#6D5DFC]">RAG</span>
+        </span>
       </Link>
 
       {/* Desktop Nav */}

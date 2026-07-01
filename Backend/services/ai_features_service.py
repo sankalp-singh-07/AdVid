@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 
 from models.document_model import Document
 from models.chunk_model import DocumentChunk
+from models.user_model import User
 from services.llm_service import llm_service
 from utils.logger import get_logger
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -54,6 +55,14 @@ class AiFeaturesService:
         Retrieves document content, builds a summarization instruction prompt,
         and requests the LLM to generate a comprehensive executive summary.
         """
+        # 0. Check and deduct credits (cost 5)
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalars().first()
+        if not user or user.credits < 5:
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits for this AI feature.")
+        user.credits -= 5
+        db.add(user)
+
         filename, doc_content = await self._get_document_text_context(document_id, user_id, db)
         
         logger.info("AI Features: Summarizing document '%s'...", filename)
@@ -87,6 +96,14 @@ class AiFeaturesService:
         Compares two documents. Analyzes similarities, differences, contrasts,
         and merges overlapping viewpoints.
         """
+        # 0. Check and deduct credits (cost 5)
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalars().first()
+        if not user or user.credits < 5:
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits for this AI feature.")
+        user.credits -= 5
+        db.add(user)
+
         name1, text1 = await self._get_document_text_context(doc_id_1, user_id, db, max_chunks=8)
         name2, text2 = await self._get_document_text_context(doc_id_2, user_id, db, max_chunks=8)
 
@@ -131,6 +148,14 @@ class AiFeaturesService:
         Generates a new business document (FAQ, SOP, Policy, Meeting Notes)
         optionally grounded in the context of an uploaded source document.
         """
+        # 0. Check and deduct credits (cost 5)
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalars().first()
+        if not user or user.credits < 5:
+            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits for this AI feature.")
+        user.credits -= 5
+        db.add(user)
+
         context_doc_name = "None"
         context_text = "No reference document provided."
 

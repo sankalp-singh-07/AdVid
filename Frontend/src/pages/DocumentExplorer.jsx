@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
     UploadCloud, FileText, Search, Filter, Clock, User as UserIcon, 
     LayoutGrid, List, MessageSquare, Database, Trash2, ExternalLink, 
@@ -9,8 +10,12 @@ import {
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import api from "../utils/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function DocumentExplorer() {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+
     // ----------------------------------------------------
     // State management
     // ----------------------------------------------------
@@ -23,6 +28,7 @@ export default function DocumentExplorer() {
 
     // Filter states
     const [selectedDept, setSelectedDept] = useState("All");
+    const [uploadDept, setUploadDept] = useState("General");
     const [selectedStatus, setSelectedStatus] = useState("All");
     const [selectedType, setSelectedType] = useState("All");
 
@@ -134,7 +140,7 @@ export default function DocumentExplorer() {
         setIsUploading(true);
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("department", "General");
+        formData.append("department", uploadDept);
         formData.append("owner", "You");
 
         try {
@@ -163,7 +169,18 @@ export default function DocumentExplorer() {
     };
 
     const handleQuickAction = (action) => {
-        alert(`Triggered Quick Action: "${action}" across active knowledge base.`);
+        let docId = selectedDocForPreview ? selectedDocForPreview.id : null;
+        let initial_query = "";
+        if (action === "Summarize Document") initial_query = docId ? "Write a clear, structured, and comprehensive executive summary of this document." : "Write a clear, structured summary of my knowledge base.";
+        else if (action === "Compare Documents") initial_query = docId ? "Compare this document with others in my knowledge base." : "Compare the key documents in my knowledge base.";
+        else initial_query = docId ? `Help me with a ${action} for this document.` : `Help me with a ${action} for my knowledge base.`;
+
+        navigate("/assistant", { 
+            state: { 
+                document_id: docId,
+                initial_query: initial_query
+            } 
+        });
     };
 
     const handleOpenPreview = (doc) => {
@@ -254,9 +271,29 @@ export default function DocumentExplorer() {
                     <h3 className="text-lg font-bold text-slate-800 mb-1.5">
                         {isUploading ? "Uploading files..." : "Drag & Drop Documents"}
                     </h3>
-                    <p className="text-[#64748B] text-xs max-w-lg mx-auto leading-relaxed mb-6">
+                    <p className="text-[#64748B] text-xs max-w-lg mx-auto leading-relaxed mb-4">
                         Supported formats: PDF, DOCX, PPTX, TXT, Markdown, CSV, Excel.
                     </p>
+
+                    {/* Department Selection */}
+                    <div className="mb-6" onClick={(e) => e.stopPropagation()}>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-3">
+                            Upload to Department:
+                        </label>
+                        <select 
+                            value={uploadDept}
+                            onChange={(e) => setUploadDept(e.target.value)}
+                            className="bg-white border border-[#E8EAF5] rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-[#6D5DFC] focus:ring-2 focus:ring-indigo-100 transition shadow-sm"
+                        >
+                            <option value="General">General</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Marketing">Marketing</option>
+                            <option value="Sales">Sales</option>
+                            <option value="HR">HR</option>
+                            <option value="Finance">Finance</option>
+                            <option value="Legal">Legal</option>
+                        </select>
+                    </div>
 
                     {/* Automatic Vector RAG indicators */}
                     <div className="flex flex-wrap justify-center gap-4 text-[10px] font-bold text-[#6D5DFC] select-none">
@@ -698,12 +735,12 @@ export default function DocumentExplorer() {
                             >
                                 Close
                             </button>
-                            <a 
-                                href="/assistant"
+                            <button 
+                                onClick={() => navigate("/assistant", { state: { document_id: selectedDocForPreview.id } })}
                                 className="px-4 py-2 bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] text-white rounded-xl text-xs font-bold transition shadow cursor-pointer flex items-center gap-1.5"
                             >
                                 <MessageSquare size={13} /> Chat With Document
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>

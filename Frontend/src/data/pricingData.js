@@ -4,15 +4,15 @@ export const pricingData = [
   {
     id: "starter",
     title: "Starter",
-    price: 49,
-    yearlyPrice: 39,
+    price: 29,
+    yearlyPrice: 24,
     features: [
       {
-        name: "Up to 100 documents",
+        name: "100 AI Chat Credits",
         icon: CheckIcon,
       },
       {
-        name: "Basic AI Chat",
+        name: "Up to 100 documents",
         icon: CheckIcon,
       },
       {
@@ -29,20 +29,20 @@ export const pricingData = [
   {
     id: "professional",
     title: "Professional",
-    price: 149,
-    yearlyPrice: 119,
+    price: 49,
+    yearlyPrice: 39,
     mostPopular: true,
     features: [
+      {
+        name: "250 AI Chat Credits",
+        icon: CheckIcon,
+      },
       {
         name: "Unlimited documents",
         icon: CheckIcon,
       },
       {
         name: "Advanced RAG & Citations",
-        icon: CheckIcon,
-      },
-      {
-        name: "AI document generation",
         icon: CheckIcon,
       },
       {
@@ -59,11 +59,15 @@ export const pricingData = [
   {
     id: "enterprise",
     title: "Enterprise",
-    price: 499,
-    yearlyPrice: 399,
+    price: 79,
+    yearlyPrice: 65,
     features: [
       {
-        name: "Unlimited everything",
+        name: "500 AI Chat Credits",
+        icon: CheckIcon,
+      },
+      {
+        name: "Unlimited documents",
         icon: CheckIcon,
       },
       {
@@ -71,15 +75,7 @@ export const pricingData = [
         icon: CheckIcon,
       },
       {
-        name: "Local Ollama integration",
-        icon: CheckIcon,
-      },
-      {
         name: "API & SSO Access",
-        icon: CheckIcon,
-      },
-      {
-        name: "Custom vector database",
         icon: CheckIcon,
       },
       {
