@@ -1,1 +1,1 @@
-# AdVid
+# IntellectRAG

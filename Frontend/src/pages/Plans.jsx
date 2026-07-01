@@ -49,7 +49,7 @@ const Plans = () => {
         key: order.key_id,
         amount: order.amount,
         currency: order.currency,
-        name: "AdVid",
+        name: "IntellectRAG",
         description: `${order.plan.name} plan - ${order.plan.credits} credits`,
         order_id: order.order_id,
         prefill: {

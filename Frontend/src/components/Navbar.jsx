@@ -45,6 +45,12 @@ export default function Navbar() {
           <NavLink
             key={link.name}
             to={link.href}
+            onClick={(e) => {
+              if (!isLoggedIn && (link.name === "AI Assistant" || link.name === "Documents")) {
+                e.preventDefault();
+                openAuthModal("login");
+              }
+            }}
             className={({ isActive }) =>
               isActive
                 ? "text-indigo-600 font-semibold transition"
@@ -64,7 +70,15 @@ export default function Navbar() {
           <NavLink
             key={link.name}
             to={link.href}
-            onClick={() => setOpenMobileMenu(false)}
+            onClick={(e) => {
+              if (!isLoggedIn && (link.name === "AI Assistant" || link.name === "Documents")) {
+                e.preventDefault();
+                setOpenMobileMenu(false);
+                openAuthModal("login");
+              } else {
+                setOpenMobileMenu(false);
+              }
+            }}
             className={({ isActive }) =>
               isActive
                 ? "text-indigo-600 font-semibold"

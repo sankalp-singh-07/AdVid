@@ -1,9 +1,11 @@
 import { ChevronRightIcon, Upload, MessageSquare, ShieldCheck, Database, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
 
 export default function HeroSection() {
     const navigate = useNavigate();
+    const { isLoggedIn, openAuthModal } = useAuth();
 
     return (
         <div className="flex flex-col items-center justify-center text-center bg-gradient-to-b from-slate-50 to-white overflow-hidden px-6 pt-32 pb-20">
@@ -12,7 +14,10 @@ export default function HeroSection() {
             <motion.button
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => navigate("/assistant")}
+                onClick={() => {
+                    if (!isLoggedIn) openAuthModal("login");
+                    else navigate("/assistant");
+                }}
                 className="flex items-center gap-2 rounded-full p-1 pr-3 text-indigo-700 bg-indigo-50 border border-indigo-100 shadow-sm hover:shadow-md transition cursor-pointer"
             >
                 <span className="bg-indigo-600 text-white text-xs px-3.5 py-1 rounded-full font-medium">
@@ -54,7 +59,10 @@ export default function HeroSection() {
                 className="flex flex-col sm:flex-row items-center gap-4 mt-10"
             >
                 <button
-                    onClick={() => navigate("/assistant")}
+                    onClick={() => {
+                        if (!isLoggedIn) openAuthModal("login");
+                        else navigate("/assistant");
+                    }}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 transition-all duration-300 px-8 py-4 rounded-xl text-white font-semibold shadow-lg shadow-indigo-600/25 cursor-pointer"
                 >
                     <MessageSquare size={20} />
@@ -62,7 +70,10 @@ export default function HeroSection() {
                 </button>
 
                 <button
-                    onClick={() => navigate("/documents")}
+                    onClick={() => {
+                        if (!isLoggedIn) openAuthModal("login");
+                        else navigate("/documents");
+                    }}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 px-8 py-4 rounded-xl text-slate-700 font-semibold transition cursor-pointer"
                 >
                     <Upload size={20} />
