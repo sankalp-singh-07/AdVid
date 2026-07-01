@@ -9,9 +9,16 @@ from schemas.document_schema import (
     DocumentResponse,
     DocumentListResponse,
     DocumentUpdateMetadata,
+    SummarizeRequest,
+    SummarizeResponse,
+    CompareRequest,
+    CompareResponse,
+    GenerateRequest,
+    GenerateResponse,
 )
 from services.auth_service import get_current_user
 from services.document_service import document_service
+from services.ai_features_service import ai_features_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -102,28 +109,60 @@ async def delete_document(
     return {"message": "Document and all associated chunks deleted successfully."}
 
 
-@router.post("/summarize", status_code=200)
-async def summarize_document(current_user: CurrentUser, db: DbDep):
+@router.post("/summarize", status_code=200, response_model=SummarizeResponse)
+async def summarize_document(
+    body: SummarizeRequest,
+    current_user: CurrentUser,
+    db: DbDep,
+):
     """
-    Generate an AI summary of a document.
-    [Phase 4 AI Features]
+    Generate an AI-powered executive summary of a document.
+    Retrieves the document's chunks and uses the LLM to produce
+    a structured summary with key findings and takeaways.
     """
-    return {"summary": "Summarize endpoint — Phase 4 coming soon."}
+    summary = await ai_features_service.summarize_document(
+        document_id=body.document_id,
+        user_id=str(current_user.id),
+        db=db,
+    )
+    return SummarizeResponse(summary=summary)
 
 
-@router.post("/compare", status_code=200)
-async def compare_documents(current_user: CurrentUser, db: DbDep):
+@router.post("/compare", status_code=200, response_model=CompareResponse)
+async def compare_documents(
+    body: CompareRequest,
+    current_user: CurrentUser,
+    db: DbDep,
+):
     """
     AI-powered comparison of two documents.
-    [Phase 4 AI Features]
+    Produces a structured report with a comparative matrix,
+    alignment/conflict analysis, and synthesis recommendations.
     """
-    return {"comparison": "Compare endpoint — Phase 4 coming soon."}
+    comparison = await ai_features_service.compare_documents(
+        doc_id_1=body.document_id_1,
+        doc_id_2=body.document_id_2,
+        user_id=str(current_user.id),
+        db=db,
+    )
+    return CompareResponse(comparison=comparison)
 
 
-@router.post("/generate", status_code=200)
-async def generate_document(current_user: CurrentUser, db: DbDep):
+@router.post("/generate", status_code=200, response_model=GenerateResponse)
+async def generate_document(
+    body: GenerateRequest,
+    current_user: CurrentUser,
+    db: DbDep,
+):
     """
-    Generate a new document (FAQ, Policy, SOP, Meeting Notes).
-    [Phase 4 AI Features]
+    Generate a new business document (FAQ, Policy, SOP, Meeting Notes).
+    Optionally grounded in an existing uploaded document for context.
     """
-    return {"generated": "Generate endpoint — Phase 4 coming soon."}
+    content = await ai_features_service.generate_document(
+        doc_type=body.doc_type,
+        instructions=body.instructions,
+        document_id=body.document_id,
+        user_id=str(current_user.id),
+        db=db,
+    )
+    return GenerateResponse(generated_content=content)

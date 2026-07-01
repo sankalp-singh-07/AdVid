@@ -69,10 +69,11 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down.")
 
 
-sentry_sdk.init(
-    dsn=settings.SENTRY_DSN,
-    send_default_pii=True,
-)
+if settings.SENTRY_DSN and settings.SENTRY_DSN.startswith("http"):
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        send_default_pii=True,
+    )
 
 app = FastAPI(
     lifespan=lifespan,
