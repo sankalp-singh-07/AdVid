@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
-    LayoutDashboard, 
     FileText, 
     UploadCloud, 
     MessageSquare, 
-    Database, 
-    Briefcase, 
-    PenTool, 
-    Settings,
-    LogOut,
     Menu,
     X
 } from "lucide-react";
@@ -17,7 +11,6 @@ import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo.png";
 
 const navItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Upload Document", href: "/upload", icon: UploadCloud },
     { name: "My Documents", href: "/documents", icon: FileText },
     { name: "AI Assistant", href: "/assistant", icon: MessageSquare },

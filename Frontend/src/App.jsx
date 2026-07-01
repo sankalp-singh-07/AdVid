@@ -6,7 +6,6 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import AIAssistant from "./pages/AIAssistant";
 import DocumentExplorer from "./pages/DocumentExplorer";
-import Dashboard from "./pages/Dashboard";
 import Features from "./pages/Features";
 import PricingPage from "./pages/PricingPage";
 
@@ -57,7 +56,6 @@ export default function App() {
                     
                     {/* Enterprise routes wrapped in Sidebar Layout */}
                     <Route element={<Layout />}>
-                        <Route path="/dashboard" element={<Dashboard />} />
                         <Route path="/knowledge-base" element={<div className="p-8"><h1>Knowledge Base</h1><p>Under construction.</p></div>} />
                         <Route path="/generator" element={<div className="p-8"><h1>Document Generator</h1><p>Under construction.</p></div>} />
                         <Route path="/settings" element={<div className="p-8"><h1>Settings</h1><p>Under construction.</p></div>} />

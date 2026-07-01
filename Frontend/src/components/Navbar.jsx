@@ -10,9 +10,7 @@ export default function Navbar() {
   const pathname = useLocation().pathname;
   const { isLoggedIn, user, logout, openAuthModal } = useAuth();
 
-  const activeLinks = isLoggedIn
-    ? [...navLinks, { name: "Dashboard", href: "/dashboard" }]
-    : navLinks;
+  const activeLinks = navLinks;
 
   useEffect(() => {
     if (openMobileMenu) {
