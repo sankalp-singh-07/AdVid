@@ -1,18 +1,19 @@
-"""
-Chat routes — Phase 3 will replace these stubs with the full RAG pipeline.
-
-Current state: All endpoints return placeholder responses.
-Every endpoint is auth-protected so the structure is correct from day one.
-"""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from models.user_model import User
+from schemas.chat_schema import (
+    ChatRequest,
+    ChatResponse,
+    ConversationResponse,
+    ConversationDetailResponse,
+    RegenerateRequest,
+)
 from services.auth_service import get_current_user
+from services.chat_service import chat_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -20,77 +21,48 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-class ChatRequest(BaseModel):
-    query: str
-    conversation_id: str | None = None
-    document_id: str | None = None     # scope retrieval to a specific document
-
-
-class RegenerateRequest(BaseModel):
-    conversation_id: str
-    message_id: str
-
-
-@router.post("", status_code=200)
+@router.post("", status_code=200, response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     current_user: CurrentUser,
     db: DbDep,
 ):
     """
-    Chat with the knowledge base via RAG.
-
-    Phase 3 implementation:
-    1. Embed the user query via Ollama
-    2. Retrieve top-K relevant chunks from Qdrant
-       (prioritise document_id scope if provided)
-    3. Build a prompt with retrieved context
-    4. Generate answer via Ollama LLM (ChatOllama)
-    5. Return answer + citations (doc name, page, chunk)
-    6. Persist message in PostgreSQL conversation history
+    Interact with the RAG pipeline.
+    Submits user query, pulls context from vector database, formats LLM prompt,
+    persist conversation thread in database, and returns the response with citations.
     """
-    return {
-        "answer": "Chat endpoint — Phase 3 coming soon.",
-        "citations": [],
-        "conversation_id": request.conversation_id,
-    }
-
-
-@router.post("/stream", status_code=200)
-async def chat_stream(
-    request: ChatRequest,
-    current_user: CurrentUser,
-    db: DbDep,
-):
-    """
-    Streaming chat — returns Server-Sent Events (SSE).
-    Phase 3 implementation — requires LangChain streaming chain.
-    """
-    return {
-        "detail": "Streaming endpoint — Phase 3 coming soon."
-    }
+    return await chat_service.send_message(
+        query=request.query,
+        conversation_id=request.conversation_id,
+        document_id=request.document_id,
+        user_id=current_user.id,
+        db=db,
+    )
 
 
 @router.get("/history", status_code=200)
 async def list_conversations(current_user: CurrentUser, db: DbDep):
     """
-    List all conversations for the authenticated user.
-    Phase 3 implementation.
+    List all conversation sessions belonging to the authenticated user.
     """
-    return {"conversations": [], "total": 0}
+    return await chat_service.list_conversations(user_id=current_user.id, db=db)
 
 
-@router.get("/history/{conversation_id}", status_code=200)
+@router.get("/history/{conversation_id}", status_code=200, response_model=ConversationDetailResponse)
 async def get_conversation_history(
     conversation_id: str,
     current_user: CurrentUser,
     db: DbDep,
 ):
     """
-    Get full message history for a specific conversation.
-    Phase 3 implementation.
+    Retrieve message history for a specific conversation session.
     """
-    return {"messages": [], "conversation_id": conversation_id}
+    return await chat_service.get_conversation_detail(
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+        db=db,
+    )
 
 
 @router.delete("/{conversation_id}", status_code=200)
@@ -100,26 +72,50 @@ async def delete_conversation(
     db: DbDep,
 ):
     """
-    Delete a conversation and all its messages.
-    Phase 3 implementation.
+    Delete a conversation thread and delete all cascade messages.
     """
-    return {"message": "Conversation deleted — Phase 3 coming soon."}
+    await chat_service.delete_conversation(
+        conversation_id=conversation_id,
+        user_id=current_user.id,
+        db=db,
+    )
+    return {"message": "Conversation session deleted successfully."}
 
 
-@router.post("/regenerate", status_code=200)
+@router.post("/regenerate", status_code=200, response_model=ChatResponse)
 async def regenerate_response(
     request: RegenerateRequest,
     current_user: CurrentUser,
     db: DbDep,
 ):
     """
-    Regenerate the last AI response in a conversation.
-    Phase 3 implementation.
+    Re-evaluates the prompt on the last user message, deletes the former assistant
+    response, and saves/returns the new generated response.
     """
-    return {
-        "answer": "Regenerate endpoint — Phase 3 coming soon.",
-        "citations": [],
-    }
+    return await chat_service.regenerate_message(
+        conversation_id=request.conversation_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+
+@router.post("/stream", status_code=200)
+async def chat_stream(
+    request: ChatRequest,
+    current_user: CurrentUser,
+    db: DbDep,
+):
+    """
+    Streaming chat endpoint returning Server-Sent Events (SSE).
+    Phase 3 stub: routes standard chat service synchronously.
+    """
+    return await chat_service.send_message(
+        query=request.query,
+        conversation_id=request.conversation_id,
+        document_id=request.document_id,
+        user_id=current_user.id,
+        db=db,
+    )
 
 
 @router.post("/export/{conversation_id}", status_code=200)
@@ -129,7 +125,7 @@ async def export_conversation(
     db: DbDep,
 ):
     """
-    Export a conversation as a downloadable document (PDF / Markdown).
-    Phase 3 implementation.
+    Export conversation history format.
+    [Phase 4 AI Features]
     """
-    return {"export_url": None, "detail": "Export endpoint — Phase 3 coming soon."}
+    return {"export_url": None, "detail": "Export endpoint — Phase 4 coming soon."}

@@ -44,10 +44,28 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(ensure_missing_columns)
     logger.info("Database tables verified/created.")
 
-    # Phase 2: Qdrant collection initialisation will go here
-    # Phase 3: Redis connection check will go here
+    # Initialise vector database collection
+    try:
+        from services.vectorstore_service import vectorstore_service
+        await vectorstore_service.ensure_collection()
+    except Exception as e:
+        logger.error("Failed to initialise Qdrant on startup: %s", e)
+
+    # Initialise Redis cache connection
+    try:
+        from services.redis_service import redis_service
+        await redis_service.connect()
+    except Exception as e:
+        logger.error("Failed to connect to Redis on startup: %s", e)
 
     yield
+    
+    # Shutdown hooks
+    try:
+        from services.redis_service import redis_service
+        await redis_service.close()
+    except Exception as e:
+        logger.error("Error closing Redis on shutdown: %s", e)
     logger.info("Shutting down.")
 
 

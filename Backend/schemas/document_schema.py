@@ -44,3 +44,31 @@ class DocumentChunkResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class SummarizeRequest(BaseModel):
+    document_id: str
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
+
+
+class CompareRequest(BaseModel):
+    document_id_1: str
+    document_id_2: str
+
+
+class CompareResponse(BaseModel):
+    comparison: str
+
+
+class GenerateRequest(BaseModel):
+    doc_type: str = Field(..., description="Type of document: faq, policy, sop, meeting_notes")
+    instructions: str = Field(..., description="Prompt instructions for generation contents")
+    document_id: str | None = Field(None, description="Optional grounding document ID context")
+
+
+class GenerateResponse(BaseModel):
+    generated_content: str
+
