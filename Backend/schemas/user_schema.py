@@ -66,6 +66,7 @@ class UserResponse(BaseModel):
     mobile: str
     dob: str
     role: str
+    credits: int
     is_active: bool
     created_at: datetime | None = None
 

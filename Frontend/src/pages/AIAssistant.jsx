@@ -29,16 +29,16 @@ export default function AIAssistant() {
         const fetchInitialData = async () => {
             try {
                 const docRes = await api.get("/documents");
-                const docs = docRes.data || [];
+                const docs = docRes.data.documents || [];
                 setAllDocuments(docs);
                 setDocumentCount(docs.length);
                 let chunks = 0, size = 0;
-                docs.forEach(d => { chunks += d.chunks || 0; size += d.size || 0; });
+                docs.forEach(d => { chunks += d.chunk_count || 0; size += d.file_size || 0; });
                 setChunkCount(chunks);
                 setStorageUsed(Number((size / (1024 * 1024)).toFixed(2)));
 
                 const histRes = await api.get("/chat/history");
-                const sortedHistory = (histRes.data || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                const sortedHistory = (histRes.data.conversations || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
                 const mappedChats = sortedHistory.map(c => ({
                     id: c.id,
                     title: c.title || "New Chat",
@@ -47,14 +47,49 @@ export default function AIAssistant() {
                     isFavorite: false,
                     messages: []
                 }));
-                setConversations(mappedChats);
                 
                 // If we came with an initial query and a document, trigger it
                 if (location.state?.initial_query && location.state?.document_id) {
-                    // Handled separately below, just ensure we create a new chat
-                    handleNewChat();
+                    const query = location.state.initial_query;
+                    const docId = location.state.document_id;
+                    const newLocalChat = {
+                        id: `c-${Date.now()}`, title: query.slice(0, 24) + "...", group: "History",
+                        isPinned: false, isFavorite: false, messages: [{ id: `msg-user-${Date.now()}`, role: "user", content: query }]
+                    };
+                    setConversations([newLocalChat, ...mappedChats]);
+                    setActiveChatId(newLocalChat.id);
+                    
+                    window.history.replaceState({}, document.title);
+                    
+                    setIsLoading(true);
+                    setLoadingStep("Searching Documents...");
+                    try {
+                        const response = await api.post("/chat", {
+                            query: query,
+                            conversation_id: null,
+                            document_id: docId
+                        });
+                        setConversations(prev => prev.map(c => c.id === newLocalChat.id ? { 
+                            ...c, 
+                            id: response.data.conversation_id,
+                            messages: [...c.messages, {
+                                id: `msg-bot-${Date.now()}`,
+                                role: "assistant",
+                                content: response.data.response,
+                                citations: response.data.citations || []
+                            }]
+                        } : c));
+                        setActiveChatId(response.data.conversation_id);
+                    } catch (err) {
+                        console.error("Initial chat error:", err);
+                    } finally {
+                        setIsLoading(false);
+                    }
                 } else if (mappedChats.length > 0) {
+                    setConversations(mappedChats);
                     setActiveChatId(mappedChats[0].id);
+                } else {
+                    setConversations([]);
                 }
             } catch (err) {
                 console.error(err);
@@ -369,6 +404,7 @@ export default function AIAssistant() {
     // Markdown/Rich text parser supporting tables
     // ----------------------------------------------------
     const renderMarkdown = (content, msgId) => {
+        if (!content) return null;
         const parts = content.split(/(```[\s\S]*?```)/g);
         
         return parts.map((part, index) => {

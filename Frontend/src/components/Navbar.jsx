@@ -122,7 +122,7 @@ export default function Navbar() {
         {/* Credits / User Profile */}
         {isLoggedIn ? (
           <div className="flex items-center gap-3">
-            <div className="flex items-center border border-slate-300 rounded-full px-5 py-2 text-slate-700 text-sm bg-white/70 backdrop-blur">
+            <div className="hidden md:flex items-center border border-slate-300 rounded-full px-5 py-2 text-slate-700 text-sm bg-white/70 backdrop-blur">
               Credits:
               <span className="ml-1 text-indigo-600 font-semibold">
                 {user?.credits ?? 0}

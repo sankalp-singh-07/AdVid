@@ -168,6 +168,19 @@ export default function DocumentExplorer() {
         }
     };
 
+    const handleUpdateDepartment = async (id, newDept) => {
+        try {
+            await api.patch(`/documents/${id}`, { department: newDept });
+            setDocuments(documents.map(d => d.id === id ? { ...d, department: newDept } : d));
+            if (selectedDocForPreview?.id === id) {
+                setSelectedDocForPreview(prev => ({ ...prev, department: newDept }));
+            }
+        } catch (error) {
+            console.error("Failed to update department:", error);
+            alert("Failed to update department.");
+        }
+    };
+
     const handleQuickAction = (action) => {
         let docId = selectedDocForPreview ? selectedDocForPreview.id : null;
         let initial_query = "";
@@ -695,7 +708,7 @@ export default function DocumentExplorer() {
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto space-y-5 flex-1 text-slate-700">
                             {/* Metadata specs */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-[#FAFBFF] border border-[#E8EAF5] rounded-xl p-4 text-xs font-semibold select-none">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 bg-[#FAFBFF] border border-[#E8EAF5] rounded-xl p-4 text-xs font-semibold select-none">
                                 <div>
                                     <span className="text-[#64748B] block mb-0.5">Uploader</span>
                                     <span className="text-slate-800 font-bold">{selectedDocForPreview.uploader}</span>
@@ -707,6 +720,22 @@ export default function DocumentExplorer() {
                                 <div>
                                     <span className="text-[#64748B] block mb-0.5">Chunks Count</span>
                                     <span className="text-[#6D5DFC] font-bold">{selectedDocForPreview.chunks} chunks</span>
+                                </div>
+                                <div>
+                                    <span className="text-[#64748B] block mb-0.5">Department</span>
+                                    <select 
+                                        value={selectedDocForPreview.department}
+                                        onChange={(e) => handleUpdateDepartment(selectedDocForPreview.id, e.target.value)}
+                                        className="bg-transparent font-bold text-slate-800 outline-none border-none cursor-pointer hover:bg-slate-100 px-1 py-0.5 rounded -ml-1 w-full"
+                                    >
+                                        <option value="General">General</option>
+                                        <option value="Engineering">Engineering</option>
+                                        <option value="Marketing">Marketing</option>
+                                        <option value="Sales">Sales</option>
+                                        <option value="HR">HR</option>
+                                        <option value="Finance">Finance</option>
+                                        <option value="Legal">Legal</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <span className="text-[#64748B] block mb-0.5">Status</span>
