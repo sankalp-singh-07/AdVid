@@ -43,7 +43,7 @@ const AuthModal = ({ isOpen, mode = "login", onClose }) => {
   const isLoginMode = mode === "login";
 
   const title = useMemo(
-    () => (isLoginMode ? "Sign in to AdVid" : "Create your account"),
+    () => (isLoginMode ? "Sign in to IntellectRAG" : "Create your account"),
     [isLoginMode]
   );
 

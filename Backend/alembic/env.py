@@ -4,7 +4,8 @@ from alembic import context
 from logging.config import fileConfig
 
 from app.db import Base
-from models import payment_model, project_model, user_model
+
+from models import user_model, payment_model, document_model, chunk_model, chat_model  # noqa: F401
 
 target_metadata = Base.metadata
 config = context.config
@@ -20,14 +21,12 @@ def run_migrations_offline():
         target_metadata=target_metadata,
         literal_binds=True,
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def do_run_migrations(connection):
     context.configure(connection=connection, target_metadata=target_metadata)
-
     with context.begin_transaction():
         context.run_migrations()
 
@@ -38,18 +37,12 @@ async def run_async_migrations():
     db_url = settings.DB_URL
     if db_url.startswith("postgresql://"):
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-
     if "postgresql+asyncpg://" in db_url and "?" in db_url:
         db_url = db_url.split("?", 1)[0]
 
-    connectable = create_async_engine(
-        db_url,
-        poolclass=None,
-    )
-
+    connectable = create_async_engine(db_url, poolclass=None)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
-
     await connectable.dispose()
 
 

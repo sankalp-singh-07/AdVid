@@ -1,7 +1,5 @@
 import { Link } from "react-router-dom";
 import { navLinks } from "../data/navLinks";
-import logo from "../assets/logo.png";
-
 export default function Footer() {
     return (
         <footer className="px-6 md:px-16 lg:px-24 xl:px-32 mt-40 w-full text-slate-500">
@@ -16,21 +14,19 @@ export default function Footer() {
                                 behavior: "smooth",
                             })
                         }
+                        className="flex items-center gap-2"
                     >
-                        <img
-                            className="h-9 md:h-9.5 w-auto shrink-0"
-                            src={logo}
-                            alt="Logo"
-                            width={140}
-                            height={40}
-                            fetchPriority="high"
-                        />
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#6D5DFC] to-[#8B5CF6] flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                            I
+                        </div>
+                        <span className="font-extrabold text-xl tracking-tight text-slate-800">
+                            Intellect<span className="text-[#6D5DFC]">RAG</span>
+                        </span>
                     </Link>
 
                     <p className="mt-6">
-                        Create high-converting ad videos from your product images using AI.
-                        Designed for creators, marketers, and businesses to launch ads
-                        faster and smarter.
+                        Secure, enterprise-grade AI Document Reader and Knowledge Assistant.
+                        Upload documents, ask questions in natural language, and retrieve accurate answers with complete source citations.
                     </p>
                 </div>
 
@@ -67,8 +63,8 @@ export default function Footer() {
                         </h2>
 
                         <div className="space-y-2">
-                            <p>+91-114-214-1714</p>
-                            <p>advid@example.com</p>
+                            <p>+1-800-KNOW-RAG</p>
+                            <p>support@intellectrag.com</p>
                         </div>
                     </div>
 
@@ -86,7 +82,7 @@ export default function Footer() {
                         })
                     }
                 >
-                    AdVid
+                    IntellectRAG
                 </Link>. All Rights Reserved.
             </p>
         </footer>

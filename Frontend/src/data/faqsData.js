@@ -1,22 +1,22 @@
 export const faqsData = [
     {
-        question: "What is this platform used for?",
-        answer: "AdVid helps you turn product and model images into high-quality AI-generated ad videos for social media, marketing, and promotions — without any editing skills."
+        question: "How does the AI securely access our documents?",
+        answer: "We use a Retrieval-Augmented Generation (RAG) architecture. Documents are securely processed, chunked, and stored as embeddings in a private vector database. The AI only retrieves relevant chunks at inference time, ensuring data privacy."
     },
     {
-        question: "How does the AI generate videos?",
-        answer: "Our AI analyzes your uploaded images and automatically creates engaging video scenes, transitions, and animations optimized for ads."
+        question: "What document formats do you support?",
+        answer: "Our platform supports a wide range of formats including PDF, DOCX, PPTX, TXT, Markdown, CSV, and Excel, allowing you to centralize your entire knowledge base."
     },
     {
-        question: "What formats are supported?",
-        answer: "You can export videos in formats optimized for Instagram, TikTok, YouTube, and other platforms."
+        question: "Is the AI hallucinating or making up answers?",
+        answer: "Our RAG implementation heavily mitigates hallucinations by grounding all AI responses in your actual uploaded documents. The AI provides exact source citations for every claim it makes."
     },
     {
-        question: "Is my data secure?",
-        answer: "Yes, your uploaded images and data are securely stored and never shared with third parties."
+        question: "Can we deploy this on our own infrastructure?",
+        answer: "Yes! Our Enterprise plan supports private on-premise deployments utilizing local Ollama instances and custom vector databases, ensuring your data never leaves your network."
     },
     {
-        question: "Do you offer customer support?",
-        answer: "Yes, we provide email and chat support to help you create the best ad videos effortlessly."
+        question: "How do roles and permissions work?",
+        answer: "We offer granular role-based access control (RBAC). You can assign users to specific departments or tags, ensuring that sensitive documents are only queryable by authorized personnel."
     }
 ];

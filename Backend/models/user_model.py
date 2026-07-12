@@ -1,9 +1,8 @@
 import uuid
 from datetime import datetime, timezone
-from typing import List
 
-from sqlalchemy import DateTime, String, Integer
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, DateTime, String, Integer
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
@@ -11,6 +10,7 @@ from app.db import Base
 class User(Base):
     __tablename__ = "users"
 
+    # ─── Identity ────────────────────────────────────────────────────────────
     id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
@@ -19,12 +19,23 @@ class User(Base):
     mobile: Mapped[str] = mapped_column(String, nullable=False)
     dob: Mapped[str] = mapped_column(String, nullable=False)
     password: Mapped[str] = mapped_column(String, nullable=False)
-    reset_code: Mapped[str | None] = mapped_column(String, nullable=True)
-    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=10, server_default="10")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+
+    # ─── Status ───────────────────────────────────────────────────────────────
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    credits: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=100, server_default="100"
+    )
+    # role: "user" | "admin" — reserved for RBAC in future
+    role: Mapped[str] = mapped_column(
+        String, nullable=False, default="user", server_default="user"
     )
 
-    projects: Mapped[List["Project"]] = relationship(  # noqa: F821
-        "Project", back_populates="owner", cascade="all, delete-orphan"
+    # ─── Password Reset ───────────────────────────────────────────────────────
+    reset_code: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # ─── Timestamps ───────────────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

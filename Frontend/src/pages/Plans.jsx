@@ -49,7 +49,7 @@ const Plans = () => {
         key: order.key_id,
         amount: order.amount,
         currency: order.currency,
-        name: "AdVid",
+        name: "IntellectRAG",
         description: `${order.plan.name} plan - ${order.plan.credits} credits`,
         order_id: order.order_id,
         prefill: {
@@ -146,7 +146,7 @@ const Plans = () => {
 
               {/* PRICE */}
               <h2 className="text-3xl font-bold">
-                ₹{plan.price}
+                ${plan.price}
                 <span className={`text-sm ml-1 ${isPopular ? "text-white/80" : "text-gray-500"}`}>
                   /mo
                 </span>
@@ -193,10 +193,9 @@ const Plans = () => {
         </div>
       )}
       <div className="text-center mt-16 text-sm text-gray-500">
-        Create stunning images for just{" "}
-        <span className="text-indigo-600 font-medium">5 credits</span> and generate
-        immersive videos for{" "}
-        <span className="text-indigo-600 font-medium">10 credits</span>.
+        Run AI queries across your documents for just{" "}
+        <span className="text-indigo-600 font-medium">1 credit</span> per standard request and{" "}
+        <span className="text-indigo-600 font-medium">5 credits</span> for advanced multi-document analysis.
       </div>
 
     </div>

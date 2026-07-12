@@ -4,15 +4,23 @@ export const navLinks = [
         href: "/",
     },
     {
-        name: "Create",
-        href: "/generate",
+        name: "AI Assistant",
+        href: "/assistant",
     },
     {
-        name: "Community",
-        href: "/community",
+        name: "Documents",
+        href: "/documents",
     },
     {
-        name: "Plans",
-        href: "/plans",
-    }
+        name: "Knowledge",
+        href: "/knowledge-base",
+    },
+    {
+        name: "Features",
+        href: "/features",
+    },
+    {
+        name: "Pricing",
+        href: "/pricing",
+    },
 ];

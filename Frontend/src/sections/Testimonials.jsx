@@ -6,7 +6,7 @@ import SectionTitle from "../components/SectionTitle";
 export default function Testimonials() {
     return (
         <>
-            <SectionTitle text1="Testimonials" text2="What creators are saying" text3="Thousands of creators and marketers use AdVid to create high-converting ad videos effortlessly." />
+            <SectionTitle text1="Testimonials" text2="Trusted by Modern Teams" text3="Thousands of enterprise leaders and teams trust our AI Knowledge Assistant to manage and query their documentation securely." />
 
             <Marquee className="max-w-5xl mx-auto mt-11" gradient={true} speed={25}>
                 <div className="flex items-center justify-center py-5">

@@ -1,16 +1,21 @@
 from pydantic import BaseModel, Field
 
 
-class PlanResponse(BaseModel):
+class PlanFeatures(BaseModel):
+    """Details surfaced to the frontend Pricing page."""
+
     id: str
     name: str
-    amount: int
+    cost: int           # USD dollars (not cents) for display
     currency: str
-    credits: int
+    doc_limit: int      # -1 = unlimited
+    query_limit: int    # -1 = unlimited
+    storage_mb: int     # -1 = unlimited
+    features: list[str]
 
 
 class PlanListResponse(BaseModel):
-    plans: list[PlanResponse]
+    plans: list[PlanFeatures]
 
 
 class CreatePaymentOrderRequest(BaseModel):
@@ -20,9 +25,9 @@ class CreatePaymentOrderRequest(BaseModel):
 class CreatePaymentOrderResponse(BaseModel):
     key_id: str
     order_id: str
-    amount: int
+    amount: int        # in cents for Razorpay
     currency: str
-    plan: PlanResponse
+    plan: PlanFeatures
     test_mode: bool
 
 
@@ -34,5 +39,5 @@ class VerifyPaymentRequest(BaseModel):
 
 class VerifyPaymentResponse(BaseModel):
     message: str
-    credits_added: int
-    total_credits: int
+    plan_id: str
+    plan_name: str

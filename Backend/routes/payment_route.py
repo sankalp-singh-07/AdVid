@@ -28,6 +28,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 @router.get("", status_code=200, response_model=PlanListResponse)
 async def list_plans():
+    """Return all available subscription plans for the Pricing page."""
     return get_available_plans()
 
 
@@ -37,6 +38,7 @@ async def buy_plan(
     current_user: CurrentUser,
     db: DbDep,
 ):
+    """Create a Razorpay order for the selected plan."""
     return await create_payment_order(
         plan_id=request_data.plan_id,
         user=current_user,
@@ -50,6 +52,7 @@ async def verify_plan_payment(
     current_user: CurrentUser,
     db: DbDep,
 ):
+    """Verify Razorpay payment signature and activate the plan."""
     return await verify_payment(
         razorpay_order_id=request_data.razorpay_order_id,
         razorpay_payment_id=request_data.razorpay_payment_id,

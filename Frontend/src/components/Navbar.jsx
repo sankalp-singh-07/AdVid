@@ -1,18 +1,26 @@
 import { MenuIcon, XIcon, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { navLinks } from "../data/navLinks";
-import logo from "../assets/logo.png";
 import { useAuth } from "../context/AuthContext";
+
+const AUTH_REQUIRED = new Set(["AI Assistant", "Documents", "Knowledge"]);
 
 export default function Navbar() {
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
   const pathname = useLocation().pathname;
+  const navigate = useNavigate();
   const { isLoggedIn, user, logout, openAuthModal } = useAuth();
 
-  const activeLinks = isLoggedIn
-    ? [...navLinks, { name: "My Generations", href: "/my-generations" }]
-    : navLinks;
+  const activeLinks = navLinks;
+
+  const requireAuth = (e) => {
+    e.preventDefault();
+    openAuthModal("login");
+    if (pathname !== "/") {
+      navigate("/", { replace: false, state: { openAuth: true, authMode: "login" } });
+    }
+  };
 
   useEffect(() => {
     if (openMobileMenu) {
@@ -31,12 +39,13 @@ export default function Navbar() {
       className={`flex items-center justify-between fixed z-50 top-0 w-full px-6 md:px-16 lg:px-24 xl:px-32 py-4 border-b border-slate-200 bg-white/40 ${openMobileMenu ? "bg-white/80" : "backdrop-blur"}`}
     >
       {/* Logo */}
-      <Link to="/">
-        <img
-          className="h-8 sm:h-9 md:h-6 w-auto shrink-0"
-          src={logo}
-          alt="Logo"
-        />
+      <Link to="/" className="flex items-center gap-2">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#6D5DFC] to-[#8B5CF6] flex items-center justify-center text-white font-bold text-lg shadow-sm">
+          I
+        </div>
+        <span className="font-extrabold text-xl tracking-tight text-slate-800">
+          Intellect<span className="text-[#6D5DFC]">RAG</span>
+        </span>
       </Link>
 
       {/* Desktop Nav */}
@@ -45,6 +54,11 @@ export default function Navbar() {
           <NavLink
             key={link.name}
             to={link.href}
+            onClick={(e) => {
+              if (!isLoggedIn && AUTH_REQUIRED.has(link.name)) {
+                requireAuth(e);
+              }
+            }}
             className={({ isActive }) =>
               isActive
                 ? "text-indigo-600 font-semibold transition"
@@ -64,7 +78,14 @@ export default function Navbar() {
           <NavLink
             key={link.name}
             to={link.href}
-            onClick={() => setOpenMobileMenu(false)}
+            onClick={(e) => {
+              if (!isLoggedIn && AUTH_REQUIRED.has(link.name)) {
+                setOpenMobileMenu(false);
+                requireAuth(e);
+              } else {
+                setOpenMobileMenu(false);
+              }
+            }}
             className={({ isActive }) =>
               isActive
                 ? "text-indigo-600 font-semibold"
@@ -110,7 +131,7 @@ export default function Navbar() {
         {/* Credits / User Profile */}
         {isLoggedIn ? (
           <div className="flex items-center gap-3">
-            <div className="flex items-center border border-slate-300 rounded-full px-5 py-2 text-slate-700 text-sm bg-white/70 backdrop-blur">
+            <div className="hidden md:flex items-center border border-slate-300 rounded-full px-5 py-2 text-slate-700 text-sm bg-white/70 backdrop-blur">
               Credits:
               <span className="ml-1 text-indigo-600 font-semibold">
                 {user?.credits ?? 0}

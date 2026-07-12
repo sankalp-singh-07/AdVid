@@ -1,38 +1,226 @@
-import { SparklesIcon } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Check, Minus, Sparkles, ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import SectionTitle from "../components/SectionTitle";
 import { pricingData } from "../data/pricingData";
 
 export default function Pricing() {
-    return (
-        <>
-            <SectionTitle text1="Pricing" text2="Our Pricing Plans" text3="Flexible pricing options designed to meet your needs — whether you're just getting started or scaling up." />
+    const [isYearly, setIsYearly] = useState(false);
+    const [showComparison, setShowComparison] = useState(false);
 
-            <div className="flex flex-wrap items-center justify-center gap-6 mt-16">
-                {pricingData.map((plan, index) => (
-                    <div key={index} className={`p-6 rounded-2xl max-w-75 w-full shadow-[0px_4px_26px] shadow-black/6 ${plan.mostPopular ? "relative pt-12 bg-gradient-to-b from-indigo-600 to-violet-600" : "bg-white"}`}>
-                        {plan.mostPopular && (
-                            <div className="flex items-center text-xs gap-1 py-1.5 px-2 text-indigo-600 absolute top-4 right-4 rounded bg-white font-medium">
-                                <SparklesIcon size={14} />
-                                <p>Most Popular</p>
-                            </div>
-                        )}
-                        <p className={plan.mostPopular && "text-white"}>{plan.title}</p>
-                        <h4 className={`text-3xl font-semibold mt-1 ${plan.mostPopular && "text-white"}`}>${plan.price}<span className={`font-normal text-sm ${plan.mostPopular ? "text-white" : "text-slate-500"}`}>/mo</span></h4>
-                        <hr className="border-slate-200 my-8" />
-                        <div className={`space-y-2 ${plan.mostPopular ? "text-white" : "text-slate-500"}`}>
-                            {plan.features.map((feature, index) => (
-                                <div key={index} className="flex items-center gap-1.5">
-                                    <feature.icon size={18} className={`${plan.mostPopular ? "text-white" : "text-indigo-600"}`} />
-                                    <span>{feature.name}</span>
+    // Feature categories for comparison table
+    const comparisonFeatures = [
+        {
+            category: "Core RAG & Retrieval",
+            features: [
+                { name: "Semantic Search", info: "Search based on context and meaning instead of just keywords.", starter: "Basic", pro: "Advanced", enterprise: "Customizable" },
+                { name: "Source Citations", info: "Every answer links back to the exact document and page number.", starter: "Yes", pro: "Yes", enterprise: "Yes" },
+                { name: "Multi-document Reasoning", info: "Query across multiple files simultaneously to synthesize facts.", starter: "No", pro: "Yes", enterprise: "Yes" },
+                { name: "Cross-file Summaries", info: "Summarize and synthesize information across multiple PDFs.", starter: "No", pro: "Yes", enterprise: "Yes" },
+            ]
+        },
+        {
+            category: "Limits & Capacity",
+            features: [
+                { name: "Documents Limit", info: "Total number of documents you can upload and index.", starter: "100 documents", pro: "Unlimited", enterprise: "Unlimited" },
+                { name: "Max File Size", info: "The maximum size limit per single uploaded file.", starter: "20 MB", pro: "100 MB", enterprise: "500 MB (Customizable)" },
+                { name: "Monthly Queries", info: "The number of AI questions you can ask per month.", starter: "500 / month", pro: "Unlimited", enterprise: "Unlimited" },
+                { name: "Supported Formats", info: "Formats processed by our extraction pipeline.", starter: "PDF, TXT, MD", pro: "PDF, DOCX, XLSX, TXT, MD", enterprise: "All + OCR & Scanned Docs" },
+            ]
+        },
+        {
+            category: "Enterprise & Security",
+            features: [
+                { name: "Data Privacy", info: "How your data is isolated and stored securely.", starter: "Secure Cloud", pro: "Dedicated Workspace", enterprise: "Zero-Data Retention / On-Premise" },
+                { name: "Ollama Private AI", info: "Connect to local LLMs to ensure no data ever leaves your network.", starter: "No", pro: "No", enterprise: "Yes (Local/Private)" },
+                { name: "Single Sign-On (SSO)", info: "Enterprise SAML/OIDC authentication.", starter: "No", pro: "No", enterprise: "Yes" },
+                { name: "Role-based Permissions", info: "Limit document access based on user departments or roles.", starter: "No", pro: "Yes", enterprise: "Yes" },
+                { name: "Support SLA", info: "Guaranteed support response times.", starter: "Email (24-48h)", pro: "Priority (12h)", enterprise: "Dedicated 24/7 / custom SLA" },
+            ]
+        }
+    ];
+
+    return (
+        <section className="py-24 bg-gradient-to-b from-white to-[#FAFBFF] relative overflow-hidden" id="pricing">
+            {/* Background elements */}
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-200/10 rounded-full blur-[120px] -z-10" />
+            <div className="absolute bottom-10 left-10 w-[300px] h-[300px] bg-blue-200/10 rounded-full blur-[100px] -z-10" />
+
+            <div className="max-w-7xl mx-auto px-6">
+                <SectionTitle 
+                    text1="Pricing Plans" 
+                    text2="Flexible Plans For Any Scale" 
+                    text3="Choose the plan that fits your organization. Start with our flexible tiers or talk to us for private deployments." 
+                />
+
+                {/* Billing Toggle */}
+                <div className="flex justify-center items-center gap-4 mt-12 mb-16 select-none">
+                    <span className={`text-sm font-semibold transition-colors ${!isYearly ? 'text-slate-800' : 'text-slate-550'}`}>Monthly</span>
+                    <button 
+                        onClick={() => setIsYearly(!isYearly)}
+                        className="relative w-14 h-8 bg-[#6D5DFC] rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#6D5DFC] focus:ring-offset-2 cursor-pointer"
+                        aria-label="Toggle annual billing"
+                    >
+                        <motion.div 
+                            className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow animate-none"
+                            animate={{ x: isYearly ? 24 : 0 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                    </button>
+                    <span className={`text-sm font-semibold transition-colors flex items-center gap-2 ${isYearly ? 'text-[#6D5DFC]' : 'text-slate-500'}`}>
+                        Yearly
+                        <span className="text-xs font-bold text-[#6D5DFC] bg-purple-50 border border-purple-100 rounded-full px-2 py-0.5 animate-pulse">Save 20%</span>
+                    </span>
+                </div>
+
+                {/* Pricing Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
+                    {pricingData.map((plan, index) => {
+                        const monthlyPrice = plan.price;
+                        const yearlyPrice = plan.yearlyPrice || Math.round(plan.price * 0.8);
+                        const displayedPrice = isYearly ? yearlyPrice : monthlyPrice;
+
+                        return (
+                            <motion.div
+                                key={plan.id}
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 0.5, delay: index * 0.1 }}
+                                whileHover={{ y: -8, transition: { duration: 0.2 } }}
+                                className={`flex flex-col relative p-8 rounded-3xl border transition-all bg-white ${
+                                    plan.mostPopular 
+                                    ? "border-[#6D5DFC] border-2 shadow-lg shadow-indigo-500/5" 
+                                    : "border-[#E8EAF5] shadow-md shadow-slate-100/60 hover:border-indigo-200"
+                                }`}
+                            >
+                                {plan.mostPopular && (
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs py-1.5 px-4 bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] text-white rounded-full font-bold uppercase tracking-wider shadow-md">
+                                        <Sparkles size={14} />
+                                        Most Popular
+                                    </div>
+                                )}
+
+                                <div className="mb-6">
+                                    <h3 className="text-xl font-bold tracking-tight text-slate-800">{plan.title}</h3>
+                                    <div className="mt-4 flex items-baseline">
+                                        <span className="text-5xl font-extrabold tracking-tight text-slate-850">
+                                            ${displayedPrice}
+                                        </span>
+                                        <span className="text-sm ml-2 text-slate-500">
+                                            /month
+                                        </span>
+                                    </div>
+                                    <p className="text-xs mt-1.5 font-semibold text-slate-500">
+                                        {isYearly ? `Billed annually ($${displayedPrice * 12}/yr)` : "Billed monthly"}
+                                    </p>
                                 </div>
-                            ))}
-                        </div>
-                        <button className={`transition w-full py-3 rounded-lg font-medium mt-8 ${plan.mostPopular ? "bg-white hover:bg-slate-100 text-slate-800" : "bg-indigo-600 hover:bg-indigo-700 text-white"}`}>
-                            <span>{plan.buttonText}</span>
-                        </button>
-                    </div>
-                ))}
+
+                                <hr className="my-6 border-[#E8EAF5]" />
+
+                                <ul className="space-y-4 flex-1 mb-8">
+                                    {plan.features.map((feature, i) => {
+                                        const Icon = feature.icon || Check;
+                                        return (
+                                            <li key={i} className="flex items-start gap-3">
+                                                <div className="mt-0.5 rounded-full p-0.5 flex items-center justify-center bg-purple-50 text-[#6D5DFC]">
+                                                    <Icon size={14} className="stroke-[3]" />
+                                                </div>
+                                                <span className="text-sm text-slate-600 font-medium">
+                                                    {feature.name}
+                                                </span>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+
+                                <button 
+                                    className={`w-full py-4 px-6 rounded-2xl font-bold text-sm transition-all duration-200 cursor-pointer ${
+                                        plan.mostPopular 
+                                        ? "bg-gradient-to-r from-[#6D5DFC] to-[#8B5CF6] hover:opacity-95 text-white shadow shadow-indigo-500/10" 
+                                        : "bg-white border border-[#E8EAF5] text-slate-700 hover:bg-purple-50 hover:text-[#6D5DFC] hover:border-[#6D5DFC]/20"
+                                    }`}
+                                >
+                                    {plan.buttonText}
+                                </button>
+                            </motion.div>
+                        );
+                    })}
+                </div>
+
+                {/* Toggle Comparison Button */}
+                <div className="flex justify-center mt-20 select-none">
+                    <button 
+                        onClick={() => setShowComparison(!showComparison)}
+                        className="flex items-center gap-2 text-[#6D5DFC] hover:text-[#8B5CF6] font-bold text-sm border border-[#6D5DFC]/15 hover:border-[#6D5DFC]/30 px-6 py-3 rounded-xl transition bg-purple-50/50 cursor-pointer"
+                    >
+                        <span>{showComparison ? "Hide Detailed Features" : "Compare All Features"}</span>
+                        {showComparison ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                </div>
+
+                {/* Comparison Table */}
+                <AnimatePresence>
+                    {showComparison && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.4, ease: "easeInOut" }}
+                            className="overflow-hidden mt-12 max-w-5xl mx-auto border border-[#E8EAF5] rounded-3xl bg-white shadow-lg shadow-slate-100/30"
+                        >
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-[#E8EAF5] bg-[#FAFBFF]">
+                                            <th className="py-5 px-6 font-bold text-slate-800 text-sm">Feature</th>
+                                            <th className="py-5 px-6 font-bold text-slate-800 text-sm w-[22%]">Starter</th>
+                                            <th className="py-5 px-6 font-bold text-slate-800 text-sm w-[22%]">Professional</th>
+                                            <th className="py-5 px-6 font-bold text-[#6D5DFC] text-sm w-[22%]">Enterprise</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#E8EAF5] text-sm">
+                                        {comparisonFeatures.map((cat, idx) => (
+                                            <tr key={idx} className="contents">
+                                                <tr className="bg-[#FAFBFF]/50">
+                                                    <td colSpan={4} className="py-3 px-6 font-bold text-slate-400 uppercase tracking-wider text-[10px] bg-[#FAFBFF]">
+                                                        {cat.category}
+                                                    </td>
+                                                </tr>
+                                                {cat.features.map((feature, fIdx) => (
+                                                    <tr key={fIdx} className="hover:bg-purple-50/20 transition-colors">
+                                                        <td className="py-4 px-6 font-semibold text-slate-700">
+                                                            <div className="flex items-center gap-1.5 group/info relative">
+                                                                {feature.name}
+                                                                <div className="relative cursor-help text-slate-400 hover:text-slate-650 group">
+                                                                    <HelpCircle size={14} />
+                                                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-48 p-2 text-xs bg-slate-800 text-white rounded-lg shadow-lg z-20 text-center leading-relaxed">
+                                                                        {feature.info}
+                                                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-600 font-medium">
+                                                            {feature.starter === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.starter === "No" ? <Minus size={16} className="text-slate-350" /> : feature.starter}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-600 font-medium">
+                                                            {feature.pro === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.pro === "No" ? <Minus size={16} className="text-slate-350" /> : feature.pro}
+                                                        </td>
+                                                        <td className="py-4 px-6 font-bold text-slate-850">
+                                                            {feature.enterprise === "Yes" ? <Check size={16} className="text-emerald-500" /> : feature.enterprise === "No" ? <Minus size={16} className="text-slate-350" /> : feature.enterprise}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-        </>
+        </section>
     );
 }

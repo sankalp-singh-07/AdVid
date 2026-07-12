@@ -20,16 +20,21 @@ RAZORPAY_ORDERS_URL = "https://api.razorpay.com/v1/orders"
 
 
 def _plan_response(plan_id: str, plan: dict) -> dict:
+    """Build a full plan dict for API responses and Razorpay order creation."""
     return {
         "id": plan_id,
         "name": plan["plan"],
-        "amount": int(plan["cost"]) * 100,
+        "cost": int(plan["cost"]),           # display price in USD
         "currency": PLAN_CURRENCY,
-        "credits": int(plan["credits"]),
+        "doc_limit": plan["doc_limit"],
+        "query_limit": plan["query_limit"],
+        "storage_mb": plan["storage_mb"],
+        "features": plan["features"],
     }
 
 
 def get_available_plans() -> dict:
+    """Return all subscription plans for the Pricing page."""
     return {
         "plans": [
             _plan_response(plan_id, plan)
@@ -43,24 +48,22 @@ def _get_plan_or_404(plan_id: str) -> dict:
     if not plan:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Plan not found.",
+            detail=f"Plan '{plan_id}' not found.",
         )
     return plan
 
 
-def _require_test_razorpay_keys() -> tuple[str, str]:
+def _require_razorpay_keys() -> tuple[str, str]:
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Razorpay test keys are not configured.",
+            detail="Razorpay keys are not configured.",
         )
-
     if settings.RAZORPAY_TEST_MODE and not settings.RAZORPAY_KEY_ID.startswith("rzp_test_"):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Only Razorpay test keys are allowed while RAZORPAY_TEST_MODE is enabled.",
         )
-
     return settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET
 
 
@@ -69,19 +72,24 @@ async def create_payment_order(
     user: User,
     db: AsyncSession,
 ) -> dict:
+    """
+    Create a Razorpay order for the selected subscription plan.
+    Amount is sent in cents (USD * 100) as Razorpay expects smallest unit.
+    """
     plan = _get_plan_or_404(plan_id)
-    key_id, key_secret = _require_test_razorpay_keys()
+    key_id, key_secret = _require_razorpay_keys()
     plan_payload = _plan_response(plan_id, plan)
 
+    amount_cents = plan_payload["cost"] * 100  # USD → cents
     receipt = f"plan_{str(user.id)[:8]}_{uuid.uuid4().hex[:12]}"
+
     payload = {
-        "amount": plan_payload["amount"],
+        "amount": amount_cents,
         "currency": plan_payload["currency"],
         "receipt": receipt,
         "notes": {
             "user_id": str(user.id),
             "plan_id": plan_id,
-            "credits": str(plan_payload["credits"]),
             "test_mode": str(settings.RAZORPAY_TEST_MODE).lower(),
         },
     }
@@ -99,7 +107,7 @@ async def create_payment_order(
         logger.error("Razorpay order creation failed: %s", exc.response.text)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Razorpay test order creation failed.",
+            detail="Razorpay order creation failed.",
         )
     except httpx.HTTPError as exc:
         logger.error("Razorpay connection error: %s", exc)
@@ -113,21 +121,24 @@ async def create_payment_order(
             user_id=user.id,
             plan_id=plan_id,
             razorpay_order_id=razorpay_order["id"],
-            amount=plan_payload["amount"],
+            amount=amount_cents,
             currency=plan_payload["currency"],
-            credits=plan_payload["credits"],
             status="created",
         )
         db.add(payment_order)
         await db.commit()
+        logger.info(
+            "Payment order created: plan=%s user_id=%s razorpay_order_id=%s",
+            plan_id, user.id, razorpay_order["id"],
+        )
     except SQLAlchemyError as exc:
-        logger.error("DB error saving Razorpay order for user_id=%s — %s", user.id, exc)
+        logger.error("DB error saving payment order for user_id=%s — %s", user.id, exc)
         raise
 
     return {
         "key_id": key_id,
         "order_id": razorpay_order["id"],
-        "amount": plan_payload["amount"],
+        "amount": amount_cents,
         "currency": plan_payload["currency"],
         "plan": plan_payload,
         "test_mode": settings.RAZORPAY_TEST_MODE,
@@ -152,7 +163,11 @@ async def verify_payment(
     user: User,
     db: AsyncSession,
 ) -> dict:
-    _, key_secret = _require_test_razorpay_keys()
+    """
+    Verify the Razorpay payment signature and mark the order as paid.
+    TODO (Phase 4): update user's active_plan field once User model has it.
+    """
+    _, key_secret = _require_razorpay_keys()
 
     try:
         result = await db.execute(
@@ -173,10 +188,11 @@ async def verify_payment(
         )
 
     if payment_order.status == "paid":
+        plan = plans.get(payment_order.plan_id, {})
         return {
             "message": "Payment already verified.",
-            "credits_added": 0,
-            "total_credits": user.credits,
+            "plan_id": payment_order.plan_id,
+            "plan_name": plan.get("plan", payment_order.plan_id),
         }
 
     if not _is_valid_signature(
@@ -196,17 +212,19 @@ async def verify_payment(
     try:
         payment_order.status = "paid"
         payment_order.razorpay_payment_id = razorpay_payment_id
-        user.credits += payment_order.credits
         db.add(payment_order)
-        db.add(user)
         await db.commit()
-        await db.refresh(user)
+        logger.info(
+            "Payment verified: plan=%s user_id=%s",
+            payment_order.plan_id, user.id,
+        )
     except SQLAlchemyError as exc:
         logger.error("DB error verifying payment order=%s — %s", razorpay_order_id, exc)
         raise
 
+    plan = plans.get(payment_order.plan_id, {})
     return {
-        "message": "Payment verified and credits added.",
-        "credits_added": payment_order.credits,
-        "total_credits": user.credits,
+        "message": "Payment verified. Your plan is now active.",
+        "plan_id": payment_order.plan_id,
+        "plan_name": plan.get("plan", payment_order.plan_id),
     }

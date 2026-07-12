@@ -164,8 +164,13 @@ async def send_reset_code(email: EmailStr, db: AsyncSession) -> dict:
         logger.error("DB error saving reset code for email=%s — %s", email, exc)
         raise
 
-    # TODO: send `code` via email; returning it here is for development only.
-    return {"message": "Reset code generated.", "reset_code_for_testing": code}
+    # TODO: send `code` via email service in production.
+    from app.config import settings
+
+    response = {"message": "If this email is registered, a reset code has been sent."}
+    if settings.ENVIRONMENT == "development" and settings.EXPOSE_RESET_CODES:
+        response["reset_code_for_testing"] = code
+    return response
 
 
 async def verify_reset_code(

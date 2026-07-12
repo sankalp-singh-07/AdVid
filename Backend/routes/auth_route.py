@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db import get_db
 from models.user_model import User
 from schemas.user_schema import (
@@ -24,7 +25,7 @@ from services.auth_service import (
     send_reset_code,
     verify_reset_code,
 )
-from app.config import settings
+from utils.rate_limit import check_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -44,14 +45,16 @@ def set_refresh_token_cookie(response: Response, refresh_token: str):
 
 
 @router.post("/register", status_code=201, response_model=TokenResponse)
-async def register(user: UserRegister, response: Response, db: DbDep):
+async def register(request: Request, user: UserRegister, response: Response, db: DbDep):
+    check_rate_limit(request, scope="auth", limit=settings.RATE_LIMIT_AUTH_PER_MINUTE)
     response_data, refresh_token = await create_user(user_data=user, db=db)
     set_refresh_token_cookie(response, refresh_token)
     return response_data
 
 
 @router.post("/login", status_code=200, response_model=TokenResponse)
-async def login(user: UserLogin, response: Response, db: DbDep):
+async def login(request: Request, user: UserLogin, response: Response, db: DbDep):
+    check_rate_limit(request, scope="auth", limit=settings.RATE_LIMIT_AUTH_PER_MINUTE)
     response_data, refresh_token = await login_user(user_login=user, db=db)
     set_refresh_token_cookie(response, refresh_token)
     return response_data

@@ -2,24 +2,21 @@ import { CheckIcon } from "lucide-react";
 
 export const pricingData = [
   {
-    id: "basic",
-    title: "Basic Plan",
-    price: 5,
+    id: "starter",
+    title: "Starter",
+    price: 29,
+    yearlyPrice: 24,
     features: [
       {
-        name: "20 credits",
+        name: "100 AI Chat Credits",
         icon: CheckIcon,
       },
       {
-        name: "Standard video quality",
+        name: "Up to 100 documents",
         icon: CheckIcon,
       },
       {
-        name: "No watermark",
-        icon: CheckIcon,
-      },
-      {
-        name: "Slower generation speed",
+        name: "Standard semantic search",
         icon: CheckIcon,
       },
       {
@@ -27,28 +24,29 @@ export const pricingData = [
         icon: CheckIcon,
       },
     ],
-    buttonText: "Get Started",
+    buttonText: "Start Free Trial",
   },
   {
-    id: "pro",
-    title: "Pro Plan",
-    price: 25,
+    id: "professional",
+    title: "Professional",
+    price: 49,
+    yearlyPrice: 39,
     mostPopular: true,
     features: [
       {
-        name: "50 credits",
+        name: "250 AI Chat Credits",
         icon: CheckIcon,
       },
       {
-        name: "HD video export",
+        name: "Unlimited documents",
         icon: CheckIcon,
       },
       {
-        name: "No watermark",
+        name: "Advanced RAG & Citations",
         icon: CheckIcon,
       },
       {
-        name: "Faster generation",
+        name: "Team collaboration",
         icon: CheckIcon,
       },
       {
@@ -56,34 +54,35 @@ export const pricingData = [
         icon: CheckIcon,
       },
     ],
-    buttonText: "Best Value",
+    buttonText: "Get Professional",
   },
   {
     id: "enterprise",
-    title: "Enterprise Plan",
-    price: 50,
+    title: "Enterprise",
+    price: 79,
+    yearlyPrice: 65,
     features: [
       {
-        name: "500 credits",
+        name: "500 AI Chat Credits",
         icon: CheckIcon,
       },
       {
-        name: "FHD video export",
+        name: "Unlimited documents",
         icon: CheckIcon,
       },
       {
-        name: "No watermark",
+        name: "Private deployment",
         icon: CheckIcon,
       },
       {
-        name: "Faster generation",
+        name: "API & SSO Access",
         icon: CheckIcon,
       },
       {
-        name: "Chat + Email support",
+        name: "Dedicated support team",
         icon: CheckIcon,
       },
     ],
-    buttonText: "Get Started",
+    buttonText: "Contact Sales",
   },
 ];

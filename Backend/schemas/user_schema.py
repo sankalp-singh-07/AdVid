@@ -65,7 +65,10 @@ class UserResponse(BaseModel):
     email: EmailStr
     mobile: str
     dob: str
+    role: str
     credits: int
+    is_active: bool
+    created_at: datetime | None = None
 
     class Config:
         from_attributes = True
