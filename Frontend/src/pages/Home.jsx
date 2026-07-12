@@ -7,12 +7,9 @@ import Pricing from "../sections/Pricing";
 import Testimonials from "../sections/Testimonials";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import AuthModal from "../components/AuthModal";
-import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
-    const { isAuthModalOpen, closeAuthModal, authModalMode } = useAuth();
-
+    // AuthModal is mounted globally in App.jsx so it works from any route.
     return (
         <div className="bg-slate-50 min-h-screen">
             <Navbar />
@@ -26,11 +23,6 @@ export default function Home() {
                 <BottomBanner />
             </main>
             <Footer />
-            <AuthModal
-                isOpen={isAuthModalOpen}
-                mode={authModalMode}
-                onClose={closeAuthModal}
-            />
         </div>
     );
 }

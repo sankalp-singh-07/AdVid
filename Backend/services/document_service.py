@@ -1,122 +1,193 @@
 import os
 import uuid
-from fastapi import UploadFile, HTTPException, status, BackgroundTasks
-from sqlalchemy import select
+from datetime import datetime, timezone
+
+from fastapi import BackgroundTasks, HTTPException, UploadFile, status
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import async_session
-from models.document_model import Document
 from models.chunk_model import DocumentChunk
+from models.document_model import Document
 from models.user_model import User
 from schemas.document_schema import DocumentUpdateMetadata
-from services.storage_service import storage_service
-from services.text_extractor import text_extractor
 from services.chunker_service import chunker_service
 from services.embedding_service import embedding_service
+from services.knowledge_base_service import knowledge_base_service
+from services.storage_service import storage_service
+from services.text_extractor import text_extractor
 from services.vectorstore_service import vectorstore_service
-from utils.constants import SUPPORTED_EXTENSIONS
+from utils.file_validation import validate_upload
 from utils.logger import get_logger
 
 logger = get_logger("document_service")
 
 
-async def run_ingestion_pipeline(document_id: str, user_id: str):
+async def _set_progress(
+    db: AsyncSession,
+    doc: Document,
+    *,
+    status_value: str | None = None,
+    progress: int | None = None,
+    stage: str | None = None,
+    error_message: str | None = None,
+    chunk_count: int | None = None,
+) -> None:
+    if status_value is not None:
+        doc.status = status_value
+    if progress is not None:
+        doc.progress = max(0, min(100, progress))
+    if stage is not None:
+        doc.stage = stage
+    if error_message is not None:
+        doc.error_message = error_message
+    if chunk_count is not None:
+        doc.chunk_count = chunk_count
+    doc.updated_at = datetime.now(timezone.utc)
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+
+
+async def run_ingestion_pipeline(
+    document_id: str, user_id: str, *, force: bool = False
+) -> None:
     """
-    Background worker that runs the document ingestion pipeline:
-    Extract text -> Chunks -> Embeddings -> Qdrant -> Postgres metadata -> ready/failed.
-    Runs inside a fresh DB session to avoid session lifetime sharing issues.
+    Background ingestion with staged progress updates.
+    Stages: extracting → chunking → embedding → indexing → done
     """
-    logger.info("Starting background ingestion pipeline for document_id=%s...", document_id)
-    
+    logger.info("Ingestion start document_id=%s force=%s", document_id, force)
+
     async with async_session() as db:
-        # 1. Fetch document
         result = await db.execute(
-            select(Document).where(Document.id == document_id, Document.user_id == user_id)
+            select(Document).where(
+                Document.id == document_id, Document.user_id == user_id
+            )
         )
         doc = result.scalars().first()
         if not doc:
-            logger.error("Background task: Document %s not found.", document_id)
+            logger.error("Ingestion: document %s not found", document_id)
+            return
+
+        if doc.status == "cancelled" and not force:
+            logger.info("Ingestion skipped (cancelled): %s", document_id)
             return
 
         try:
-            # Update status to processing
-            doc.status = "processing"
-            db.add(doc)
-            await db.commit()
-            await db.refresh(doc)
+            await _set_progress(
+                db, doc, status_value="processing", progress=5, stage="extracting",
+                error_message=None,
+            )
 
-            # 2. Extract text page-by-page
-            temp_path = await storage_service.download_temp_file(doc.storage_path, doc.file_type)
+            temp_path = await storage_service.download_temp_file(
+                doc.storage_path, doc.file_type
+            )
             try:
+                await _set_progress(db, doc, progress=15, stage="extracting")
                 pages = text_extractor.extract_text(temp_path, doc.file_type)
             finally:
                 if os.path.exists(temp_path):
                     try:
                         os.remove(temp_path)
                     except Exception as clean_err:
-                        logger.warning("Failed to remove temp file %s: %s", temp_path, clean_err)
+                        logger.warning("Temp cleanup failed: %s", clean_err)
 
-            # 3. Split into semantic chunks
+            # Re-check cancellation
+            await db.refresh(doc)
+            if doc.status == "cancelled":
+                return
+
+            await _set_progress(db, doc, progress=30, stage="chunking")
             chunks = chunker_service.chunk_document(pages)
             if not chunks:
                 raise ValueError("No text chunks could be created from document.")
 
-            # 4. Generate embeddings
+            await _set_progress(
+                db, doc, progress=40, stage="embedding", chunk_count=len(chunks)
+            )
             chunk_contents = [c["content"] for c in chunks]
             vectors = await embedding_service.get_embeddings(chunk_contents)
 
-            # 5. Insert vectors into Qdrant
+            await db.refresh(doc)
+            if doc.status == "cancelled":
+                return
+
+            await _set_progress(db, doc, progress=75, stage="indexing")
+
+            # Clear previous vectors on retry
+            try:
+                await vectorstore_service.delete_chunks_by_document(doc.id, user_id)
+            except Exception:
+                pass
+
+            # Clear previous chunk rows on retry
+            existing_chunks = await db.execute(
+                select(DocumentChunk).where(DocumentChunk.document_id == doc.id)
+            )
+            for row in existing_chunks.scalars().all():
+                await db.delete(row)
+            await db.commit()
+
             doc_meta = {
                 "document_id": doc.id,
                 "user_id": user_id,
+                "knowledge_base_id": doc.knowledge_base_id,
                 "filename": doc.original_filename,
                 "department": doc.department,
                 "owner": doc.owner,
-                "created_at": doc.created_at
+                "created_at": doc.created_at,
             }
-            qdrant_point_ids = await vectorstore_service.insert_chunks(chunks, vectors, doc_meta)
+            qdrant_point_ids = await vectorstore_service.insert_chunks(
+                chunks, vectors, doc_meta
+            )
 
-            # 6. Save chunks in Postgres database
-            db_chunks = []
             for idx, chunk in enumerate(chunks):
-                db_chunk = DocumentChunk(
-                    document_id=doc.id,
-                    user_id=user_id,
-                    chunk_index=chunk["chunk_index"],
-                    page_number=chunk["page_number"],
-                    content=chunk["content"],
-                    qdrant_point_id=qdrant_point_ids[idx]
+                db.add(
+                    DocumentChunk(
+                        document_id=doc.id,
+                        user_id=user_id,
+                        chunk_index=chunk["chunk_index"],
+                        page_number=chunk["page_number"],
+                        content=chunk["content"],
+                        qdrant_point_id=qdrant_point_ids[idx],
+                    )
                 )
-                db_chunks.append(db_chunk)
-                db.add(db_chunk)
 
-            # 7. Update document status
-            doc.status = "ready"
-            doc.chunk_count = len(chunks)
-            doc.error_message = None
-            db.add(doc)
-            
-            await db.commit()
-            logger.info("Successfully ingested document_id=%s. Total chunks: %d", doc.id, len(chunks))
+            await _set_progress(
+                db,
+                doc,
+                status_value="ready",
+                progress=100,
+                stage="done",
+                error_message=None,
+                chunk_count=len(chunks),
+            )
+            logger.info(
+                "Ingestion complete document_id=%s chunks=%d", doc.id, len(chunks)
+            )
 
         except Exception as e:
-            logger.error("Ingestion pipeline failed for document_id=%s: %s", document_id, e, exc_info=True)
-            # Re-fetch document if transaction was rolled back on error
+            logger.error(
+                "Ingestion failed document_id=%s: %s", document_id, e, exc_info=True
+            )
             try:
-                db.add(doc)
-                doc.status = "failed"
-                doc.error_message = str(e)
-                await db.commit()
+                result = await db.execute(
+                    select(Document).where(Document.id == document_id)
+                )
+                doc = result.scalars().first()
+                if doc and doc.status != "cancelled":
+                    await _set_progress(
+                        db,
+                        doc,
+                        status_value="failed",
+                        stage="failed",
+                        error_message=str(e)[:2000],
+                    )
             except Exception as commit_err:
-                logger.error("Failed to mark document status as failed in DB: %s", commit_err)
+                logger.error("Failed to mark document failed: %s", commit_err)
 
 
 class DocumentService:
-    """
-    Coordinates CRUD operations for documents. Handlers off processing to
-    the background worker thread.
-    """
-
     async def upload_document(
         self,
         file: UploadFile,
@@ -125,84 +196,143 @@ class DocumentService:
         user: User,
         db: AsyncSession,
         background_tasks: BackgroundTasks,
+        knowledge_base_id: str | None = None,
     ) -> Document:
-        """
-        Validates file metadata, writes file to disk, creates initial document record,
-        and triggers background ingestion worker.
-        """
-        # Validate extension
-        filename = file.filename or "unnamed_file"
-        _, ext = os.path.splitext(filename)
-        ext = ext.lower()
-        
-        if ext not in SUPPORTED_EXTENSIONS:
-            raise HTTPException(
-                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail=f"Unsupported file format '{ext}'. Supported formats: {', '.join(SUPPORTED_EXTENSIONS)}",
-            )
+        content, ext, mime = await validate_upload(file)
+        kb_id = await knowledge_base_service.resolve_kb_id(
+            user.id, db, knowledge_base_id
+        )
 
-        # Pre-assign file id
         doc_id = str(uuid.uuid4())
-        
-        # Save file to storage
-        storage_result = await storage_service.save_file(user.id, doc_id, file, ext)
-        relative_path = storage_result["url"]
-        file_size = storage_result["size"]
+        storage_result = await storage_service.save_bytes(
+            user_id=user.id,
+            file_id=doc_id,
+            content=content,
+            extension=ext,
+            mime_type=mime,
+            filename=file.filename,
+        )
 
         try:
-
-            # Create document database entry
             doc = Document(
                 id=doc_id,
                 user_id=user.id,
+                knowledge_base_id=kb_id,
                 filename=f"{doc_id}{ext}",
-                original_filename=filename,
+                original_filename=file.filename or f"file{ext}",
                 file_type=ext,
-                file_size=file_size,
-                storage_path=relative_path,
+                file_size=storage_result["size"],
+                storage_path=storage_result["url"],
+                mime_type=mime,
                 status="pending",
+                progress=0,
+                stage="uploaded",
                 department=department,
-                owner=owner
+                owner=owner or user.name,
             )
             db.add(doc)
             await db.commit()
             await db.refresh(doc)
-            logger.info("Uploaded document record saved. user_id=%s, id=%s", user.id, doc.id)
-
-            # Trigger background pipeline
+            logger.info("Upload saved user=%s doc=%s kb=%s", user.id, doc.id, kb_id)
             background_tasks.add_task(run_ingestion_pipeline, doc.id, user.id)
             return doc
-
         except Exception as e:
-            # Cleanup storage on DB failures
-            storage_service.delete_file(relative_path)
-            logger.error("Failed to initiate document upload for user_id=%s: %s", user.id, e)
+            await storage_service.delete_file_async(storage_result["url"])
+            logger.error("Upload metadata failed: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to save document metadata: {str(e)}",
+                detail=f"Failed to save document metadata: {e}",
+            ) from e
+
+    async def list_documents(
+        self,
+        user: User,
+        db: AsyncSession,
+        *,
+        knowledge_base_id: str | None = None,
+        search: str | None = None,
+        department: str | None = None,
+        status_filter: str | None = None,
+        file_type: str | None = None,
+        owner: str | None = None,
+        sort_by: str = "created_at",
+        sort_dir: str = "desc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        conditions = [Document.user_id == user.id]
+
+        if knowledge_base_id:
+            conditions.append(Document.knowledge_base_id == knowledge_base_id)
+        if department and department.lower() != "all":
+            conditions.append(Document.department == department)
+        if status_filter and status_filter.lower() != "all":
+            # Map UI labels
+            status_map = {
+                "indexed": "ready",
+                "ready": "ready",
+                "processing": "processing",
+                "failed": "failed",
+                "pending": "pending",
+            }
+            mapped = status_map.get(status_filter.lower(), status_filter.lower())
+            conditions.append(Document.status == mapped)
+        if file_type and file_type.lower() != "all":
+            ft = file_type.lower().lstrip(".")
+            conditions.append(
+                or_(
+                    Document.file_type == f".{ft}",
+                    Document.file_type == ft,
+                    Document.original_filename.ilike(f"%.{ft}"),
+                )
+            )
+        if owner:
+            conditions.append(Document.owner.ilike(f"%{owner}%"))
+        if search:
+            term = f"%{search.strip()}%"
+            conditions.append(
+                or_(
+                    Document.original_filename.ilike(term),
+                    Document.department.ilike(term),
+                    Document.owner.ilike(term),
+                )
             )
 
-    async def list_documents(self, user: User, db: AsyncSession) -> dict:
-        """
-        Retrieves all documents belonging to the user.
-        """
+        count_stmt = select(func.count(Document.id)).where(and_(*conditions))
+        total = (await db.execute(count_stmt)).scalar() or 0
+
+        sort_col = {
+            "created_at": Document.created_at,
+            "updated_at": Document.updated_at,
+            "name": Document.original_filename,
+            "size": Document.file_size,
+            "status": Document.status,
+        }.get(sort_by, Document.created_at)
+
+        order = sort_col.desc() if sort_dir.lower() == "desc" else sort_col.asc()
+
         result = await db.execute(
             select(Document)
-            .where(Document.user_id == user.id)
-            .order_by(Document.created_at.desc())
+            .where(and_(*conditions))
+            .order_by(order)
+            .limit(min(limit, 200))
+            .offset(max(offset, 0))
         )
         documents = result.scalars().all()
         return {
             "documents": documents,
-            "total": len(documents)
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         }
 
-    async def get_document_by_id(self, document_id: str, user: User, db: AsyncSession) -> Document:
-        """
-        Fetches a document and raises 404 if not found or unauthorized.
-        """
+    async def get_document_by_id(
+        self, document_id: str, user: User, db: AsyncSession
+    ) -> Document:
         result = await db.execute(
-            select(Document).where(Document.id == document_id, Document.user_id == user.id)
+            select(Document).where(
+                Document.id == document_id, Document.user_id == user.id
+            )
         )
         doc = result.scalars().first()
         if not doc:
@@ -212,26 +342,18 @@ class DocumentService:
             )
         return doc
 
-    async def delete_document(self, document_id: str, user: User, db: AsyncSession) -> None:
-        """
-        Removes the document from local storage, removes vectors from Qdrant, and
-        cascade deletes chunks and document record from Postgres.
-        """
+    async def delete_document(
+        self, document_id: str, user: User, db: AsyncSession
+    ) -> None:
         doc = await self.get_document_by_id(document_id, user, db)
-
-        # 1. Delete physical file
-        storage_service.delete_file(doc.storage_path)
-
-        # 2. Delete vectors from Qdrant
+        await storage_service.delete_file_async(doc.storage_path)
         try:
             await vectorstore_service.delete_chunks_by_document(doc.id, user.id)
         except Exception as e:
-            logger.warning("Failed to delete Qdrant vectors for doc_id=%s: %s. Continuing database deletion...", doc.id, e)
-
-        # 3. Delete postgres record (cascade deletes chunks automatically via SQLAlchemy mapping)
+            logger.warning("Qdrant cleanup warning doc=%s: %s", doc.id, e)
         await db.delete(doc)
         await db.commit()
-        logger.info("Deleted document database record. user_id=%s, id=%s", user.id, document_id)
+        logger.info("Deleted document %s", document_id)
 
     async def update_document_metadata(
         self,
@@ -240,24 +362,62 @@ class DocumentService:
         user: User,
         db: AsyncSession,
     ) -> Document:
-        """
-        Updates document department/owner metadata.
-        """
         doc = await self.get_document_by_id(document_id, user, db)
-        
         if meta_data.department is not None:
             doc.department = meta_data.department
         if meta_data.owner is not None:
             doc.owner = meta_data.owner
-
+        if getattr(meta_data, "knowledge_base_id", None) is not None:
+            await knowledge_base_service.get_knowledge_base(
+                meta_data.knowledge_base_id, user.id, db
+            )
+            doc.knowledge_base_id = meta_data.knowledge_base_id
         db.add(doc)
         await db.commit()
         await db.refresh(doc)
-        
-        # Note: If this was a production app with heavy metadata querying in Qdrant, we would trigger
-        # a background task here to update payloads in Qdrant as well. For now, since the text chunk
-        # payload is static, updating the Postgres record is sufficient for doc metadata.
-        logger.info("Updated document metadata. user_id=%s, id=%s", user.id, document_id)
+        return doc
+
+    async def cancel_ingestion(
+        self, document_id: str, user: User, db: AsyncSession
+    ) -> Document:
+        doc = await self.get_document_by_id(document_id, user, db)
+        if doc.status not in ("pending", "processing"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only pending/processing documents can be cancelled.",
+            )
+        doc.status = "cancelled"
+        doc.stage = "cancelled"
+        doc.error_message = "Cancelled by user"
+        db.add(doc)
+        await db.commit()
+        await db.refresh(doc)
+        return doc
+
+    async def retry_ingestion(
+        self,
+        document_id: str,
+        user: User,
+        db: AsyncSession,
+        background_tasks: BackgroundTasks,
+    ) -> Document:
+        doc = await self.get_document_by_id(document_id, user, db)
+        if doc.status not in ("failed", "cancelled", "ready"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Document is not in a retriable state.",
+            )
+        doc.status = "pending"
+        doc.progress = 0
+        doc.stage = "queued"
+        doc.error_message = None
+        doc.retry_count = (doc.retry_count or 0) + 1
+        db.add(doc)
+        await db.commit()
+        await db.refresh(doc)
+        background_tasks.add_task(
+            run_ingestion_pipeline, doc.id, user.id, force=True
+        )
         return doc
 
 

@@ -12,11 +12,15 @@ export const navLinks = [
         href: "/documents",
     },
     {
+        name: "Knowledge",
+        href: "/knowledge-base",
+    },
+    {
         name: "Features",
         href: "/features",
     },
     {
         name: "Pricing",
         href: "/pricing",
-    }
+    },
 ];

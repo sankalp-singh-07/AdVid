@@ -1,9 +1,9 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
 class DocumentResponse(BaseModel):
-    """Schema representing document details in API responses."""
     id: str
     filename: str
     original_filename: str
@@ -14,6 +14,11 @@ class DocumentResponse(BaseModel):
     error_message: str | None = None
     department: str | None = None
     owner: str | None = None
+    knowledge_base_id: str | None = None
+    progress: int = 0
+    stage: str | None = None
+    mime_type: str | None = None
+    retry_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -22,19 +27,19 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentUpdateMetadata(BaseModel):
-    """Schema for updating document metadata via PATCH."""
-    department: str | None = Field(None, description="Organization department owning this document")
-    owner: str | None = Field(None, description="Organization user/role owning this document")
+    department: str | None = Field(None, description="Organization department")
+    owner: str | None = Field(None, description="Owner name/role")
+    knowledge_base_id: str | None = Field(None, description="Move document to KB")
 
 
 class DocumentListResponse(BaseModel):
-    """Schema for a paginated list of documents."""
     documents: list[DocumentResponse]
     total: int
+    limit: int | None = None
+    offset: int | None = None
 
 
 class DocumentChunkResponse(BaseModel):
-    """Schema representing a single document chunk."""
     id: str
     document_id: str
     chunk_index: int
@@ -64,11 +69,10 @@ class CompareResponse(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    doc_type: str = Field(..., description="Type of document: faq, policy, sop, meeting_notes")
-    instructions: str = Field(..., description="Prompt instructions for generation contents")
-    document_id: str | None = Field(None, description="Optional grounding document ID context")
+    doc_type: str = Field(..., description="faq | policy | sop | meeting_notes")
+    instructions: str
+    document_id: str | None = None
 
 
 class GenerateResponse(BaseModel):
     generated_content: str
-

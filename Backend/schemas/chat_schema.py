@@ -1,48 +1,64 @@
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
 class Citation(BaseModel):
-    """Schema representing retrieved chunk sources for citation formatting."""
     filename: str
     page: int
     score: float
     content: str
     document_id: str | None = None
+    # Frontend-friendly aliases
+    title: str | None = None
+    excerpt: str | None = None
+    confidence: int | None = None
 
 
 class ChatRequest(BaseModel):
-    """Schema for incoming user chat query."""
-    query: str = Field(..., min_length=1, description="The user's query or prompt")
-    conversation_id: str | None = Field(None, description="The session ID. If null, a new conversation is initialized.")
-    document_id: str | None = Field(None, description="If provided, scopes retrieval to this document first.")
+    query: str = Field(..., min_length=1, max_length=8000)
+    conversation_id: str | None = None
+    document_id: str | None = Field(
+        None, description="Optional single-document filter within the KB"
+    )
+    knowledge_base_id: str | None = Field(
+        None, description="Active knowledge base (defaults to user's default KB)"
+    )
 
 
 class ChatResponse(BaseModel):
-    """Schema for RAG chat pipeline responses."""
     answer: str
+    response: str | None = None  # alias
     citations: list[Citation]
     conversation_id: str
     message_id: str
+    knowledge_base_id: str | None = None
 
 
 class MessageResponse(BaseModel):
-    """Schema for individual message history."""
     id: str
     role: str
     content: str
     sources: list[Citation] | None = None
+    # Alias so frontend can use either field
+    citations: list[Citation] | None = None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+    def model_post_init(self, __context) -> None:
+        if self.citations is None and self.sources is not None:
+            object.__setattr__(self, "citations", self.sources)
+        if self.sources is None and self.citations is not None:
+            object.__setattr__(self, "sources", self.citations)
+
 
 class ConversationResponse(BaseModel):
-    """Schema for session list view."""
     id: str
     title: str
     document_id: str | None = None
+    knowledge_base_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -51,10 +67,16 @@ class ConversationResponse(BaseModel):
 
 
 class ConversationDetailResponse(ConversationResponse):
-    """Schema for full message context list."""
     messages: list[MessageResponse]
 
 
 class RegenerateRequest(BaseModel):
-    """Schema for regenerating the last assistant response."""
-    conversation_id: str = Field(..., description="The ID of the conversation to regenerate in.")
+    conversation_id: str
+
+
+class RenameConversationRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=120)
+
+
+class ExportRequest(BaseModel):
+    format: str = Field("markdown", description="markdown | md | txt | pdf")

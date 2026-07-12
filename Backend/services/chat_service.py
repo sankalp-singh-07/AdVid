@@ -1,13 +1,18 @@
+import json
 import uuid
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+
 from fastapi import HTTPException, status
-from sqlalchemy import select, delete, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.db import async_session
 from models.chat_model import Conversation, Message
 from models.document_model import Document
 from models.user_model import User
+from services.knowledge_base_service import knowledge_base_service
 from services.rag_service import rag_service
 from services.redis_service import redis_service
 from utils.logger import get_logger
@@ -16,28 +21,40 @@ logger = get_logger("chat_service")
 
 
 class ChatService:
-    """
-    Handles all business logic for conversations, chat history, message persistence,
-    and RAG execution coordination.
-    """
+    async def _require_credits(
+        self, user_id: str, db: AsyncSession, amount: int = 1
+    ) -> User:
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalars().first()
+        if not user or user.credits < amount:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Insufficient credits for AI Chat.",
+            )
+        return user
+
+    async def _deduct_credits(self, user: User, db: AsyncSession, amount: int = 1) -> None:
+        user.credits = max(0, user.credits - amount)
+        db.add(user)
 
     async def get_or_create_conversation(
         self,
         user_id: str,
         conversation_id: str | None,
         document_id: str | None,
+        knowledge_base_id: str | None,
         db: AsyncSession,
-        first_query: str
+        first_query: str,
     ) -> Conversation:
-        """
-        Retrieves a conversation or creates a new one with a smart generated title.
-        """
+        kb_id = await knowledge_base_service.resolve_kb_id(
+            user_id, db, knowledge_base_id
+        )
+
         if conversation_id:
-            # Fetch existing conversation
             result = await db.execute(
                 select(Conversation).where(
-                    Conversation.id == conversation_id, 
-                    Conversation.user_id == user_id
+                    Conversation.id == conversation_id,
+                    Conversation.user_id == user_id,
                 )
             )
             conv = result.scalars().first()
@@ -46,64 +63,69 @@ class ChatService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Conversation not found or access denied.",
                 )
-            
-            # If scoped document changed, update it
             if document_id and conv.document_id != document_id:
                 conv.document_id = document_id
-                db.add(conv)
+            if knowledge_base_id and conv.knowledge_base_id != kb_id:
+                conv.knowledge_base_id = kb_id
+            db.add(conv)
             return conv
 
-        # Generate a smart default title (truncating first query)
-        title = first_query[:40] + "..." if len(first_query) > 40 else first_query
-        
-        # If scoped to a specific document, include document context in title
+        title = first_query[:40] + ("..." if len(first_query) > 40 else "")
         if document_id:
             doc_result = await db.execute(
-                select(Document).where(Document.id == document_id, Document.user_id == user_id)
+                select(Document).where(
+                    Document.id == document_id, Document.user_id == user_id
+                )
             )
             doc = doc_result.scalars().first()
             if doc:
-                title = f"Doc: {doc.original_filename}"
+                title = f"Doc: {doc.original_filename}"[:80]
 
         conv = Conversation(
             id=str(uuid.uuid4()),
             user_id=user_id,
             title=title,
-            document_id=document_id
+            document_id=document_id,
+            knowledge_base_id=kb_id,
         )
         db.add(conv)
         await db.commit()
         await db.refresh(conv)
-        logger.info("New conversation initialized: id=%s, title='%s'", conv.id, title)
+        logger.info("New conversation id=%s kb=%s", conv.id, kb_id)
         return conv
 
-    async def list_conversations(self, user_id: str, db: AsyncSession) -> dict:
-        """
-        Returns all conversations for a user ordered by last updated.
-        """
+    async def list_conversations(
+        self,
+        user_id: str,
+        db: AsyncSession,
+        *,
+        knowledge_base_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        conditions = [Conversation.user_id == user_id]
+        if knowledge_base_id:
+            conditions.append(Conversation.knowledge_base_id == knowledge_base_id)
+
         result = await db.execute(
             select(Conversation)
-            .where(Conversation.user_id == user_id)
+            .where(*conditions)
             .order_by(Conversation.updated_at.desc())
+            .limit(min(limit, 200))
+            .offset(max(offset, 0))
         )
         conversations = result.scalars().all()
-        return {
-            "conversations": conversations,
-            "total": len(conversations)
-        }
+        return {"conversations": conversations, "total": len(conversations)}
 
     async def get_conversation_detail(
-        self, 
-        conversation_id: str, 
-        user_id: str, 
-        db: AsyncSession
+        self, conversation_id: str, user_id: str, db: AsyncSession
     ) -> Conversation:
-        """
-        Fetches full conversation session detail including all historical messages.
-        """
         result = await db.execute(
             select(Conversation)
-            .where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+            .where(
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
+            )
             .options(selectinload(Conversation.messages))
         )
         conv = result.scalars().first()
@@ -112,20 +134,16 @@ class ChatService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found or access denied.",
             )
-        
-        # Sort messages chronologically
         conv.messages.sort(key=lambda x: x.created_at)
         return conv
 
-    async def delete_conversation(self, conversation_id: str, user_id: str, db: AsyncSession) -> None:
-        """
-        Deletes a conversation and cascade removes all messages.
-        Clears associated cache keys if Redis is configured.
-        """
+    async def delete_conversation(
+        self, conversation_id: str, user_id: str, db: AsyncSession
+    ) -> None:
         result = await db.execute(
             select(Conversation).where(
-                Conversation.id == conversation_id, 
-                Conversation.user_id == user_id
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
             )
         )
         conv = result.scalars().first()
@@ -134,44 +152,43 @@ class ChatService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found or access denied.",
             )
-
-        # Clear Redis cache if exists
-        cache_key = f"chat:history:{conversation_id}"
-        await redis_service.delete(cache_key)
-
+        await redis_service.delete(f"chat:history:{conversation_id}")
         await db.delete(conv)
         await db.commit()
-        logger.info("Deleted conversation session: id=%s", conversation_id)
 
-    async def get_chat_history_list(self, conversation_id: str, db: AsyncSession) -> list[dict]:
-        """
-        Helper that builds a clean list of history messages dicts for RAG context window.
-        Uses Redis caching to avoid database queries on quick conversational turns.
-        """
+    async def rename_conversation(
+        self, conversation_id: str, user_id: str, title: str, db: AsyncSession
+    ) -> Conversation:
+        result = await db.execute(
+            select(Conversation).where(
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
+            )
+        )
+        conv = result.scalars().first()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+        conv.title = title.strip()[:120] or conv.title
+        db.add(conv)
+        await db.commit()
+        await db.refresh(conv)
+        return conv
+
+    async def get_chat_history_list(
+        self, conversation_id: str, db: AsyncSession
+    ) -> list[dict]:
         cache_key = f"chat:history:{conversation_id}"
-        
-        # Check cache
-        cached_history = await redis_service.get(cache_key)
-        if cached_history:
-            logger.info("Cache hit: retrieved chat history for session %s", conversation_id)
-            return cached_history
+        cached = await redis_service.get(cache_key)
+        if cached:
+            return cached
 
-        # Fetch from DB
         result = await db.execute(
             select(Message)
             .where(Message.conversation_id == conversation_id)
             .order_by(Message.created_at.asc())
         )
         messages = result.scalars().all()
-        
-        history = []
-        for msg in messages:
-            history.append({
-                "role": msg.role,
-                "content": msg.content
-            })
-            
-        # Cache results for 15 minutes
+        history = [{"role": m.role, "content": m.content} for m in messages]
         await redis_service.set(cache_key, history, ttl=900)
         return history
 
@@ -180,106 +197,187 @@ class ChatService:
         query: str,
         conversation_id: str | None,
         document_id: str | None,
+        knowledge_base_id: str | None,
         user_id: str,
-        db: AsyncSession
+        db: AsyncSession,
     ) -> dict:
-        """
-        Primary execution thread. Resolves conversation thread, gathers history,
-        runs query through RAG pipeline, saves messages, and returns answer with citations.
-        """
-        # 0. Check and deduct credits
-        user_result = await db.execute(select(User).where(User.id == user_id))
-        user = user_result.scalars().first()
-        if not user or user.credits < 1:
-            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits for AI Chat.")
-        user.credits -= 1
-        db.add(user)
+        user = await self._require_credits(user_id, db, 1)
 
-        # 1. Resolve conversation thread
         conv = await self.get_or_create_conversation(
             user_id=user_id,
             conversation_id=conversation_id,
             document_id=document_id,
+            knowledge_base_id=knowledge_base_id,
             db=db,
-            first_query=query
+            first_query=query,
         )
-
-        # 2. Gather conversation history
         history = await self.get_chat_history_list(conv.id, db)
 
-        # 3. Execute RAG pipeline
-        answer, citations = await rag_service.execute_rag(
-            query=query,
-            user_id=user_id,
-            history=history,
-            document_id=document_id or conv.document_id
-        )
+        try:
+            answer, citations = await rag_service.execute_rag(
+                query=query,
+                user_id=user_id,
+                history=history,
+                document_id=document_id or conv.document_id,
+                knowledge_base_id=knowledge_base_id or conv.knowledge_base_id,
+            )
+        except Exception as e:
+            logger.error("RAG failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"AI generation failed: {e}",
+            ) from e
 
-        # 4. Save User Message
+        # Deduct only after success
+        await self._deduct_credits(user, db, 1)
+
         user_msg = Message(
             id=str(uuid.uuid4()),
             conversation_id=conv.id,
             role="user",
-            content=query
+            content=query,
         )
-        db.add(user_msg)
-
-        # 5. Save Assistant Message (with source citations)
         assistant_msg = Message(
             id=str(uuid.uuid4()),
             conversation_id=conv.id,
             role="assistant",
             content=answer,
-            sources=citations
+            sources=citations,
         )
-        db.add(assistant_msg)
-
-        # 6. Update conversation timestamp
         conv.updated_at = datetime.now(timezone.utc)
+        db.add(user_msg)
+        db.add(assistant_msg)
         db.add(conv)
-        
         await db.commit()
-
-        # Invalidate/update Redis history cache
-        cache_key = f"chat:history:{conv.id}"
-        await redis_service.delete(cache_key)
+        await redis_service.delete(f"chat:history:{conv.id}")
 
         return {
             "answer": answer,
+            "response": answer,  # alias for older clients
             "citations": citations,
             "conversation_id": conv.id,
-            "message_id": assistant_msg.id
+            "message_id": assistant_msg.id,
+            "knowledge_base_id": conv.knowledge_base_id,
         }
 
-    async def regenerate_message(
+    async def stream_message(
         self,
-        conversation_id: str,
+        query: str,
+        conversation_id: str | None,
+        document_id: str | None,
+        knowledge_base_id: str | None,
         user_id: str,
-        db: AsyncSession
-    ) -> dict:
+        db: AsyncSession | None = None,
+    ) -> AsyncIterator[str]:
         """
-        Erases the last assistant response, retrieves the last user prompt,
-        re-runs retrieval/generation, and saves the new answer.
+        Yields SSE data lines. Uses a dedicated DB session so the stream
+        outlives the request dependency lifecycle.
+        Credits deducted only on successful completion.
         """
-        # 0. Check and deduct credits
-        user_result = await db.execute(select(User).where(User.id == user_id))
-        user = user_result.scalars().first()
-        if not user or user.credits < 1:
-            raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Insufficient credits to regenerate message.")
-        user.credits -= 1
-        db.add(user)
+        async with async_session() as session:
+            user = await self._require_credits(user_id, session, 1)
+            conv = await self.get_or_create_conversation(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                document_id=document_id,
+                knowledge_base_id=knowledge_base_id,
+                db=session,
+                first_query=query,
+            )
+            history = await self.get_chat_history_list(conv.id, session)
 
-        # 1. Fetch conversation
+            user_msg = Message(
+                id=str(uuid.uuid4()),
+                conversation_id=conv.id,
+                role="user",
+                content=query,
+            )
+            session.add(user_msg)
+            await session.commit()
+
+            conv_id = conv.id
+            conv_kb = conv.knowledge_base_id
+            conv_doc = conv.document_id
+
+            yield _sse(
+                {
+                    "type": "meta",
+                    "conversation_id": conv_id,
+                    "knowledge_base_id": conv_kb,
+                }
+            )
+
+            full_answer = ""
+            citations: list = []
+            try:
+                async for event in rag_service.stream_rag(
+                    query=query,
+                    user_id=user_id,
+                    history=history,
+                    document_id=document_id or conv_doc,
+                    knowledge_base_id=knowledge_base_id or conv_kb,
+                ):
+                    if event["type"] == "citations":
+                        citations = event.get("citations") or []
+                        yield _sse({"type": "citations", "citations": citations})
+                    elif event["type"] == "token":
+                        yield _sse(
+                            {"type": "token", "content": event.get("content", "")}
+                        )
+                    elif event["type"] == "done":
+                        full_answer = event.get("answer") or full_answer
+                        citations = event.get("citations") or citations
+            except Exception as e:
+                logger.error("Stream RAG failed: %s", e, exc_info=True)
+                yield _sse({"type": "error", "detail": str(e)})
+                return
+
+            # Re-bind entities on the live session after long generation
+            user = await self._require_credits(user_id, session, 1)
+            await self._deduct_credits(user, session, 1)
+
+            result = await session.execute(
+                select(Conversation).where(Conversation.id == conv_id)
+            )
+            conv = result.scalars().first()
+            assistant_msg = Message(
+                id=str(uuid.uuid4()),
+                conversation_id=conv_id,
+                role="assistant",
+                content=full_answer,
+                sources=citations,
+            )
+            if conv:
+                conv.updated_at = datetime.now(timezone.utc)
+                session.add(conv)
+            session.add(assistant_msg)
+            await session.commit()
+            await redis_service.delete(f"chat:history:{conv_id}")
+
+            yield _sse(
+                {
+                    "type": "done",
+                    "answer": full_answer,
+                    "response": full_answer,
+                    "citations": citations,
+                    "conversation_id": conv_id,
+                    "message_id": assistant_msg.id,
+                    "knowledge_base_id": conv_kb,
+                }
+            )
+
+    async def regenerate_message(
+        self, conversation_id: str, user_id: str, db: AsyncSession
+    ) -> dict:
+        user = await self._require_credits(user_id, db, 1)
         conv = await self.get_conversation_detail(conversation_id, user_id, db)
         if not conv.messages:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot regenerate message in an empty conversation."
+                detail="Cannot regenerate message in an empty conversation.",
             )
 
-        # Find the last assistant message and last user message
         messages = sorted(conv.messages, key=lambda x: x.created_at)
-        
         last_assistant_msg = None
         last_user_msg = None
 
@@ -293,58 +391,57 @@ class ChatService:
         if not last_user_msg:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Could not find a user message to regenerate from."
+                detail="Could not find a user message to regenerate from.",
             )
 
-        # Build query history prior to the regenerated turn
         cutoff = last_user_msg.created_at
-        prior_messages = [m for m in messages if m.created_at < cutoff]
-        
-        history = []
-        for msg in prior_messages:
-            history.append({
-                "role": msg.role,
-                "content": msg.content
-            })
+        prior = [m for m in messages if m.created_at < cutoff]
+        history = [{"role": m.role, "content": m.content} for m in prior]
 
-        # Re-run RAG pipeline on last query
-        answer, citations = await rag_service.execute_rag(
-            query=last_user_msg.content,
-            user_id=user_id,
-            history=history,
-            document_id=conv.document_id
-        )
+        try:
+            answer, citations = await rag_service.execute_rag(
+                query=last_user_msg.content,
+                user_id=user_id,
+                history=history,
+                document_id=conv.document_id,
+                knowledge_base_id=conv.knowledge_base_id,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"AI generation failed: {e}",
+            ) from e
 
-        # Delete the obsolete assistant response if one exists
+        await self._deduct_credits(user, db, 1)
+
         if last_assistant_msg:
             await db.delete(last_assistant_msg)
 
-        # Save new assistant message
         new_assistant_msg = Message(
             id=str(uuid.uuid4()),
             conversation_id=conv.id,
             role="assistant",
             content=answer,
-            sources=citations
+            sources=citations,
         )
-        db.add(new_assistant_msg)
-
-        # Update conversation timestamp
         conv.updated_at = datetime.now(timezone.utc)
+        db.add(new_assistant_msg)
         db.add(conv)
-
         await db.commit()
-
-        # Invalidate Redis cache
-        cache_key = f"chat:history:{conv.id}"
-        await redis_service.delete(cache_key)
+        await redis_service.delete(f"chat:history:{conv.id}")
 
         return {
             "answer": answer,
+            "response": answer,
             "citations": citations,
             "conversation_id": conv.id,
-            "message_id": new_assistant_msg.id
+            "message_id": new_assistant_msg.id,
+            "knowledge_base_id": conv.knowledge_base_id,
         }
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, default=str)}\n\n"
 
 
 chat_service = ChatService()

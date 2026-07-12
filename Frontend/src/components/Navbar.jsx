@@ -1,15 +1,26 @@
 import { MenuIcon, XIcon, LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { navLinks } from "../data/navLinks";
 import { useAuth } from "../context/AuthContext";
+
+const AUTH_REQUIRED = new Set(["AI Assistant", "Documents", "Knowledge"]);
 
 export default function Navbar() {
   const [openMobileMenu, setOpenMobileMenu] = useState(false);
   const pathname = useLocation().pathname;
+  const navigate = useNavigate();
   const { isLoggedIn, user, logout, openAuthModal } = useAuth();
 
   const activeLinks = navLinks;
+
+  const requireAuth = (e) => {
+    e.preventDefault();
+    openAuthModal("login");
+    if (pathname !== "/") {
+      navigate("/", { replace: false, state: { openAuth: true, authMode: "login" } });
+    }
+  };
 
   useEffect(() => {
     if (openMobileMenu) {
@@ -44,9 +55,8 @@ export default function Navbar() {
             key={link.name}
             to={link.href}
             onClick={(e) => {
-              if (!isLoggedIn && (link.name === "AI Assistant" || link.name === "Documents")) {
-                e.preventDefault();
-                openAuthModal("login");
+              if (!isLoggedIn && AUTH_REQUIRED.has(link.name)) {
+                requireAuth(e);
               }
             }}
             className={({ isActive }) =>
@@ -69,10 +79,9 @@ export default function Navbar() {
             key={link.name}
             to={link.href}
             onClick={(e) => {
-              if (!isLoggedIn && (link.name === "AI Assistant" || link.name === "Documents")) {
-                e.preventDefault();
+              if (!isLoggedIn && AUTH_REQUIRED.has(link.name)) {
                 setOpenMobileMenu(false);
-                openAuthModal("login");
+                requireAuth(e);
               } else {
                 setOpenMobileMenu(false);
               }

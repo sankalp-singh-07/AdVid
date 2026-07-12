@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Route, Routes, useLocation, Navigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import ScrollToTop from "./components/ScrollToTop";
@@ -6,65 +7,140 @@ import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import AIAssistant from "./pages/AIAssistant";
 import DocumentExplorer from "./pages/DocumentExplorer";
+import KnowledgeBasePage from "./pages/KnowledgeBase";
+import Settings from "./pages/Settings";
 import Features from "./pages/Features";
 import PricingPage from "./pages/PricingPage";
+import AuthModal from "./components/AuthModal";
 
 import { useAuth } from "./context/AuthContext";
+import { PageHeaderSkeleton } from "./components/Skeleton";
 
+/**
+ * Unauthenticated users hitting protected routes are sent home with the login modal open.
+ */
 function ProtectedRoute({ children }) {
-    const { isLoggedIn } = useAuth();
+  const { isLoggedIn, openAuthModal } = useAuth();
+
+  useEffect(() => {
     if (!isLoggedIn) {
-        return <Navigate to="/" replace />;
+      openAuthModal("login");
     }
-    return children;
+  }, [isLoggedIn, openAuthModal]);
+
+  if (!isLoggedIn) {
+    return <Navigate to="/" replace state={{ openAuth: true, authMode: "login" }} />;
+  }
+  return children;
 }
 
 export default function App() {
-    const location = useLocation();
-    const { loading } = useAuth();
-    const MotionDiv = motion.div;
+  const location = useLocation();
+  const { loading, isAuthModalOpen, closeAuthModal, authModalMode, openAuthModal } =
+    useAuth();
+  const MotionDiv = motion.div;
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-        );
+  // Honor navigation state: { openAuth: true } from redirects / deep links
+  useEffect(() => {
+    if (location.state?.openAuth) {
+      openAuthModal(location.state.authMode || "login");
+      // Clear state so refresh doesn't re-open forever
+      window.history.replaceState({}, document.title);
     }
+  }, [location.state, openAuthModal]);
 
+  if (loading) {
     return (
-        <AnimatePresence mode="wait">
-            <MotionDiv
-                key={location.pathname}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.4 }}
-                className="h-full w-full"
-            >
-                <ScrollToTop />
-                <Routes location={location}>
-                    {/* Public routes */}
-                    <Route path="/" element={<Home />} />
-                    <Route path="/features" element={<Features />} />
-                    <Route path="/pricing" element={<PricingPage />} />
-                    
-                    {/* Protected routes */}
-                    <Route path="/assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
-                    <Route path="/documents" element={<ProtectedRoute><DocumentExplorer /></ProtectedRoute>} />
-                    <Route path="/upload" element={<ProtectedRoute><DocumentExplorer initialTab="upload" /></ProtectedRoute>} />
-                    
-                    {/* Enterprise routes wrapped in Sidebar Layout */}
-                    <Route element={<Layout />}>
-                        <Route path="/knowledge-base" element={<div className="p-8"><h1>Knowledge Base</h1><p>Under construction.</p></div>} />
-                        <Route path="/generator" element={<div className="p-8"><h1>Document Generator</h1><p>Under construction.</p></div>} />
-                        <Route path="/settings" element={<div className="p-8"><h1>Settings</h1><p>Under construction.</p></div>} />
-                    </Route>
-
-                    {/* Catch all */}
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-            </MotionDiv>
-        </AnimatePresence>
+      <div className="min-h-screen bg-[#FAFBFF]">
+        <div className="h-[68px] border-b border-[#E8EAF5] bg-white/60" />
+        <div className="max-w-5xl mx-auto px-8 pt-16">
+          <PageHeaderSkeleton />
+          <div className="mt-10 grid gap-4">
+            <div className="h-32 rounded-2xl bg-slate-100 animate-pulse" />
+            <div className="h-32 rounded-2xl bg-slate-100 animate-pulse" />
+          </div>
+        </div>
+      </div>
     );
+  }
+
+  const animateRoute = !["/assistant", "/documents", "/upload"].includes(
+    location.pathname
+  );
+
+  return (
+    <>
+      <AnimatePresence mode="wait">
+        <MotionDiv
+          key={animateRoute ? location.pathname : "app-shell"}
+          initial={animateRoute ? { opacity: 0, y: 12 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          exit={animateRoute ? { opacity: 0, y: -8 } : undefined}
+          transition={{ duration: 0.25 }}
+          className="h-full w-full"
+        >
+          <ScrollToTop />
+          <Routes location={location}>
+            <Route path="/" element={<Home />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/pricing" element={<PricingPage />} />
+
+            <Route
+              path="/assistant"
+              element={
+                <ProtectedRoute>
+                  <AIAssistant />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/documents"
+              element={
+                <ProtectedRoute>
+                  <DocumentExplorer />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/upload"
+              element={
+                <ProtectedRoute>
+                  <DocumentExplorer initialTab="upload" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/knowledge-base"
+              element={
+                <ProtectedRoute>
+                  <KnowledgeBasePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route element={<Layout />}>
+              <Route path="/generator" element={<Navigate to="/assistant" replace />} />
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </MotionDiv>
+      </AnimatePresence>
+
+      {/* Global auth modal — works from Home, Features, Pricing, or any redirect */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        mode={authModalMode}
+        onClose={closeAuthModal}
+      />
+    </>
+  );
 }

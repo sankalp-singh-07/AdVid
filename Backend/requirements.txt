@@ -46,6 +46,8 @@ qdrant-client>=1.9.0
 # ─── Redis Cache ─────────────────────────────────────────────────────────────────
 redis>=5.0.0
 aioredis>=2.0.0
+upstash-redis>=1.0.0           # optional REST client for Upstash
+certifi>=2024.0.0              # TLS CA bundle for rediss:// (Upstash)
 
 # ─── Document Parsing ────────────────────────────────────────────────────────────
 pypdf>=4.0.0                   # PDF extraction
@@ -77,3 +79,8 @@ ecdsa==0.19.2
 dnspython==2.8.0
 h11==0.16.0
 cloudinary>=1.41.0
+
+# ─── Export & optional providers ─────────────────────────────────────────────
+reportlab>=4.0.0               # professional PDF export
+# boto3>=1.34.0                # enable when STORAGE_PROVIDER=s3
+# langchain-openai>=0.2.0      # enable when LLM_PROVIDER=openai_compatible
