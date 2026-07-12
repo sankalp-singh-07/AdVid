@@ -11,7 +11,11 @@ from sqlalchemy.orm import selectinload
 from app.db import async_session
 from models.chat_model import Conversation, Message
 from models.document_model import Document
-from models.user_model import User
+from services.credit_service import (
+    chat_credit_cost,
+    deduct_credits,
+    require_credits,
+)
 from services.knowledge_base_service import knowledge_base_service
 from services.rag_service import rag_service
 from services.redis_service import redis_service
@@ -21,22 +25,6 @@ logger = get_logger("chat_service")
 
 
 class ChatService:
-    async def _require_credits(
-        self, user_id: str, db: AsyncSession, amount: int = 1
-    ) -> User:
-        result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalars().first()
-        if not user or user.credits < amount:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Insufficient credits for AI Chat.",
-            )
-        return user
-
-    async def _deduct_credits(self, user: User, db: AsyncSession, amount: int = 1) -> None:
-        user.credits = max(0, user.credits - amount)
-        db.add(user)
-
     async def get_or_create_conversation(
         self,
         user_id: str,
@@ -63,8 +51,8 @@ class ChatService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Conversation not found or access denied.",
                 )
-            if document_id and conv.document_id != document_id:
-                conv.document_id = document_id
+            if document_id is not None and conv.document_id != document_id:
+                conv.document_id = document_id or None
             if knowledge_base_id and conv.knowledge_base_id != kb_id:
                 conv.knowledge_base_id = kb_id
             db.add(conv)
@@ -91,7 +79,7 @@ class ChatService:
         db.add(conv)
         await db.commit()
         await db.refresh(conv)
-        logger.info("New conversation id=%s kb=%s", conv.id, kb_id)
+        logger.info("New conversation id=%s kb=%s doc=%s", conv.id, kb_id, document_id)
         return conv
 
     async def list_conversations(
@@ -201,7 +189,10 @@ class ChatService:
         user_id: str,
         db: AsyncSession,
     ) -> dict:
-        user = await self._require_credits(user_id, db, 1)
+        # Reserve max possible; charge actual after generation
+        await require_credits(
+            user_id, db, amount=10, action="AI chat (up to 10 credits)"
+        )
 
         conv = await self.get_or_create_conversation(
             user_id=user_id,
@@ -228,8 +219,11 @@ class ChatService:
                 detail=f"AI generation failed: {e}",
             ) from e
 
-        # Deduct only after success
-        await self._deduct_credits(user, db, 1)
+        cost = chat_credit_cost(answer=answer, citations=citations, query=query)
+        user = await require_credits(user_id, db, amount=cost, action="AI chat")
+        credits_left = await deduct_credits(
+            user, db, cost, reason=f"chat cost={cost} conv={conv.id}"
+        )
 
         user_msg = Message(
             id=str(uuid.uuid4()),
@@ -253,11 +247,13 @@ class ChatService:
 
         return {
             "answer": answer,
-            "response": answer,  # alias for older clients
+            "response": answer,
             "citations": citations,
             "conversation_id": conv.id,
             "message_id": assistant_msg.id,
             "knowledge_base_id": conv.knowledge_base_id,
+            "credits_charged": cost,
+            "credits_remaining": credits_left,
         }
 
     async def stream_message(
@@ -269,13 +265,10 @@ class ChatService:
         user_id: str,
         db: AsyncSession | None = None,
     ) -> AsyncIterator[str]:
-        """
-        Yields SSE data lines. Uses a dedicated DB session so the stream
-        outlives the request dependency lifecycle.
-        Credits deducted only on successful completion.
-        """
         async with async_session() as session:
-            user = await self._require_credits(user_id, session, 1)
+            await require_credits(
+                user_id, session, amount=10, action="AI chat (up to 10 credits)"
+            )
             conv = await self.get_or_create_conversation(
                 user_id=user_id,
                 conversation_id=conversation_id,
@@ -314,7 +307,7 @@ class ChatService:
                     query=query,
                     user_id=user_id,
                     history=history,
-                    document_id=document_id or conv_doc,
+                    document_id=document_id if document_id is not None else conv_doc,
                     knowledge_base_id=knowledge_base_id or conv_kb,
                 ):
                     if event["type"] == "citations":
@@ -332,9 +325,13 @@ class ChatService:
                 yield _sse({"type": "error", "detail": str(e)})
                 return
 
-            # Re-bind entities on the live session after long generation
-            user = await self._require_credits(user_id, session, 1)
-            await self._deduct_credits(user, session, 1)
+            cost = chat_credit_cost(
+                answer=full_answer, citations=citations, query=query
+            )
+            user = await require_credits(user_id, session, amount=cost, action="AI chat")
+            credits_left = await deduct_credits(
+                user, session, cost, reason=f"stream chat cost={cost} conv={conv_id}"
+            )
 
             result = await session.execute(
                 select(Conversation).where(Conversation.id == conv_id)
@@ -363,13 +360,17 @@ class ChatService:
                     "conversation_id": conv_id,
                     "message_id": assistant_msg.id,
                     "knowledge_base_id": conv_kb,
+                    "credits_charged": cost,
+                    "credits_remaining": credits_left,
                 }
             )
 
     async def regenerate_message(
         self, conversation_id: str, user_id: str, db: AsyncSession
     ) -> dict:
-        user = await self._require_credits(user_id, db, 1)
+        await require_credits(
+            user_id, db, amount=10, action="AI regenerate (up to 10 credits)"
+        )
         conv = await self.get_conversation_detail(conversation_id, user_id, db)
         if not conv.messages:
             raise HTTPException(
@@ -412,7 +413,13 @@ class ChatService:
                 detail=f"AI generation failed: {e}",
             ) from e
 
-        await self._deduct_credits(user, db, 1)
+        cost = chat_credit_cost(
+            answer=answer, citations=citations, query=last_user_msg.content
+        )
+        user = await require_credits(user_id, db, amount=cost, action="AI regenerate")
+        credits_left = await deduct_credits(
+            user, db, cost, reason=f"regenerate cost={cost} conv={conv.id}"
+        )
 
         if last_assistant_msg:
             await db.delete(last_assistant_msg)
@@ -437,6 +444,8 @@ class ChatService:
             "conversation_id": conv.id,
             "message_id": new_assistant_msg.id,
             "knowledge_base_id": conv.knowledge_base_id,
+            "credits_charged": cost,
+            "credits_remaining": credits_left,
         }
 
 

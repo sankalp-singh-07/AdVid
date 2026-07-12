@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Send, Bot, User, FileText, Loader2, Plus, Copy, RotateCcw,
-  History, Search, Trash2, Edit3, Check, X, StopCircle,
+  History, Search, Trash2, Edit3, Check, StopCircle,
   Download, Database, ChevronDown, Sparkles, PanelRightClose, PanelRightOpen,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
@@ -10,6 +10,7 @@ import {
   ChatMessagesSkeleton,
   ChatSidebarSkeleton,
 } from "../components/Skeleton";
+import { useAuth } from "../context/AuthContext";
 import api, {
   normalizeChatResponse,
   normalizeMessage,
@@ -18,8 +19,21 @@ import api, {
   exportConversation,
 } from "../utils/api";
 
+/**
+ * Match a conversation row during streaming while its id may change
+ * from local `c-…` → server UUID.
+ */
+function matchChat(c, localId, serverId) {
+  if (!c) return false;
+  if (localId && c.id === localId) return true;
+  if (serverId && c.id === serverId) return true;
+  return false;
+}
+
 export default function AIAssistant() {
   const location = useLocation();
+  const { refreshUser } = useAuth();
+
   const [knowledgeBases, setKnowledgeBases] = useState([]);
   const [activeKbId, setActiveKbId] = useState(
     location.state?.knowledge_base_id || ""
@@ -44,10 +58,21 @@ export default function AIAssistant() {
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [lastCreditsCharged, setLastCreditsCharged] = useState(null);
 
   const abortRef = useRef(null);
   const messagesEndRef = useRef(null);
   const initialQueryFired = useRef(false);
+  // Track streaming identity so React state renames never drop the answer
+  const streamLocalIdRef = useRef(null);
+  const streamServerIdRef = useRef(null);
+  const activeChatIdRef = useRef(null);
+  // Prevent history-fetch from overwriting an in-flight stream
+  const streamingLockRef = useRef(false);
+
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
 
   const activeChat = conversations.find((c) => c.id === activeChatId);
 
@@ -57,18 +82,18 @@ export default function AIAssistant() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [activeChat?.messages, streamingText, isLoading, scrollToBottom]);
+  }, [activeChat?.messages?.length, streamingText, isLoading, scrollToBottom]);
 
-  // Boot: KBs + docs + history in parallel
+  // Boot: KBs + docs + history
   useEffect(() => {
     let cancelled = false;
     const boot = async () => {
       setBootLoading(true);
       try {
         const [kbRes, docRes, histRes] = await Promise.all([
-          api.get("/knowledge-bases"),
-          api.get("/documents", { params: { limit: 100 } }),
-          api.get("/chat/history", { params: { limit: 50 } }),
+          api.get("/knowledge-bases").catch(() => ({ data: { knowledge_bases: [] } })),
+          api.get("/documents", { params: { limit: 100 } }).catch(() => ({ data: { documents: [] } })),
+          api.get("/chat/history", { params: { limit: 50 } }).catch(() => ({ data: { conversations: [] } })),
         ]);
         if (cancelled) return;
 
@@ -92,29 +117,37 @@ export default function AIAssistant() {
           messages: [],
           loaded: false,
         }));
-        setConversations(mapped);
+
+        const docIdFromNav = location.state?.document_id || "";
+        const forceNew =
+          Boolean(location.state?.forceNew) ||
+          Boolean(location.state?.document_id) ||
+          Boolean(location.state?.initial_query);
 
         if (location.state?.initial_query && !initialQueryFired.current) {
           initialQueryFired.current = true;
           const q = location.state.initial_query;
-          const docId = location.state.document_id || "";
+          const docId = docIdFromNav;
           const kbId = location.state.knowledge_base_id || defaultKb;
           setSelectedContextDocId(docId);
           setActiveKbId(kbId);
           window.history.replaceState({}, document.title);
-          // Create local chat and send
+
           const localId = `c-${Date.now()}`;
-          setConversations((prev) => [
+          setConversations([
             {
               id: localId,
               title: q.slice(0, 40),
-              messages: [{ id: `u-${Date.now()}`, role: "user", content: q, citations: [] }],
+              document_id: docId || null,
+              knowledge_base_id: kbId,
+              messages: [
+                { id: `u-${Date.now()}`, role: "user", content: q, citations: [] },
+              ],
               loaded: true,
             },
-            ...prev,
+            ...mapped,
           ]);
           setActiveChatId(localId);
-          // defer send until state settles
           setTimeout(() => {
             sendMessage(q, {
               chatId: localId,
@@ -122,18 +155,37 @@ export default function AIAssistant() {
               knowledgeBaseId: kbId,
               skipUserAppend: true,
             });
-          }, 50);
-        } else if (mapped.length > 0) {
-          setActiveChatId(mapped[0].id);
+          }, 30);
+        } else if (forceNew && docIdFromNav) {
+          // Chat button on a document: always open a fresh session for that doc
+          const localId = `c-${Date.now()}`;
+          const docMeta = docs.find((d) => d.id === docIdFromNav);
+          const title = docMeta
+            ? `Doc: ${docMeta.original_filename}`.slice(0, 48)
+            : "Document chat";
+          setSelectedContextDocId(docIdFromNav);
+          if (location.state?.knowledge_base_id) {
+            setActiveKbId(location.state.knowledge_base_id);
+          }
+          window.history.replaceState({}, document.title);
+          setConversations([
+            {
+              id: localId,
+              title,
+              document_id: docIdFromNav,
+              knowledge_base_id: location.state?.knowledge_base_id || defaultKb,
+              messages: [],
+              loaded: true,
+            },
+            ...mapped,
+          ]);
+          setActiveChatId(localId);
+        } else {
+          setConversations(mapped);
+          if (mapped.length > 0) setActiveChatId(mapped[0].id);
         }
       } catch (err) {
-        // Partial failures (e.g. empty history) should not brick the chat UI
         console.error("Boot failed", err);
-        if (!cancelled) {
-          setConversations((prev) => prev || []);
-          setAllDocuments((prev) => prev || []);
-          setKnowledgeBases((prev) => prev || []);
-        }
       } finally {
         if (!cancelled) setBootLoading(false);
       }
@@ -145,9 +197,11 @@ export default function AIAssistant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load messages when selecting a server chat
+  // Load messages for server chats (never overwrite an in-flight stream)
   useEffect(() => {
     if (!activeChatId || String(activeChatId).startsWith("c-")) return;
+    if (streamingLockRef.current) return;
+
     const chat = conversations.find((c) => c.id === activeChatId);
     if (!chat || chat.loaded) return;
 
@@ -156,7 +210,10 @@ export default function AIAssistant() {
       setMessagesLoading(true);
       try {
         const res = await api.get(`/chat/history/${activeChatId}`);
-        if (cancelled) return;
+        if (cancelled || streamingLockRef.current) return;
+        // Only apply if user is still on this chat
+        if (activeChatIdRef.current !== activeChatId) return;
+
         const loaded = (res.data.messages || []).map(normalizeMessage);
         setConversations((prev) =>
           prev.map((c) =>
@@ -171,8 +228,13 @@ export default function AIAssistant() {
               : c
           )
         );
-        if (res.data.knowledge_base_id) setActiveKbId(res.data.knowledge_base_id);
-        if (res.data.document_id) setSelectedContextDocId(res.data.document_id || "");
+        if (res.data.knowledge_base_id) {
+          setActiveKbId(res.data.knowledge_base_id);
+        }
+        // Prefer conversation's document scope when opening history
+        if (res.data.document_id != null) {
+          setSelectedContextDocId(res.data.document_id || "");
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -183,7 +245,9 @@ export default function AIAssistant() {
     return () => {
       cancelled = true;
     };
-  }, [activeChatId, conversations]);
+    // intentionally NOT depending on full conversations array to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChatId]);
 
   const kbDocs = useMemo(() => {
     if (!activeKbId) return allDocuments;
@@ -197,7 +261,14 @@ export default function AIAssistant() {
   const handleNewChat = () => {
     const id = `c-${Date.now()}`;
     setConversations((prev) => [
-      { id, title: "New Session", messages: [], loaded: true },
+      {
+        id,
+        title: "New Session",
+        messages: [],
+        loaded: true,
+        document_id: selectedContextDocId || null,
+        knowledge_base_id: activeKbId || null,
+      },
       ...prev,
     ]);
     setActiveChatId(id);
@@ -242,7 +313,17 @@ export default function AIAssistant() {
   const stopGeneration = () => {
     abortRef.current?.abort();
     abortRef.current = null;
+    streamingLockRef.current = false;
     setIsLoading(false);
+  };
+
+  const applyCredits = (event) => {
+    if (typeof event.credits_charged === "number") {
+      setLastCreditsCharged(event.credits_charged);
+    }
+    if (typeof event.credits_remaining === "number") {
+      refreshUser?.().catch(() => {});
+    }
   };
 
   const sendMessage = async (
@@ -257,15 +338,26 @@ export default function AIAssistant() {
     const query = (text || "").trim();
     if (!query || isLoading) return;
 
-    let currentId = chatId;
-    if (!currentId) {
-      currentId = `c-${Date.now()}`;
+    let localId = chatId;
+    if (!localId) {
+      localId = `c-${Date.now()}`;
       setConversations((prev) => [
-        { id: currentId, title: query.slice(0, 40), messages: [], loaded: true },
+        {
+          id: localId,
+          title: query.slice(0, 40),
+          messages: [],
+          loaded: true,
+          document_id: documentId || null,
+          knowledge_base_id: knowledgeBaseId || null,
+        },
         ...prev,
       ]);
-      setActiveChatId(currentId);
+      setActiveChatId(localId);
     }
+
+    streamLocalIdRef.current = localId;
+    streamServerIdRef.current = String(localId).startsWith("c-") ? null : localId;
+    streamingLockRef.current = true;
 
     const userMessage = {
       id: `msg-user-${Date.now()}`,
@@ -277,12 +369,12 @@ export default function AIAssistant() {
     if (!skipUserAppend) {
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === currentId
+          c.id === localId
             ? {
                 ...c,
-                title:
-                  c.messages.length === 0 ? query.slice(0, 40) : c.title,
+                title: c.messages.length === 0 ? query.slice(0, 40) : c.title,
                 messages: [...c.messages, userMessage],
+                loaded: true,
               }
             : c
         )
@@ -292,13 +384,68 @@ export default function AIAssistant() {
     setInput("");
     setIsLoading(true);
     setStreamingText("");
+    setLastCreditsCharged(null);
 
     const controller = new AbortController();
     abortRef.current = controller;
 
-    let serverConvId = String(currentId).startsWith("c-") ? null : currentId;
+    let serverConvId = streamServerIdRef.current;
     let citations = [];
     let assembled = "";
+    let finalized = false;
+
+    const commitAssistant = (finalAnswer, finalCitations, finalId, messageId) => {
+      const local = streamLocalIdRef.current;
+      const server = finalId || streamServerIdRef.current || serverConvId;
+      const aiMessage = {
+        id: messageId || `msg-ai-${Date.now()}`,
+        role: "assistant",
+        content: finalAnswer,
+        citations: finalCitations || [],
+      };
+
+      setConversations((prev) => {
+        let found = false;
+        const next = prev.map((c) => {
+          if (!matchChat(c, local, server)) return c;
+          found = true;
+          // Avoid duplicating assistant if already present (rare double-done)
+          const withoutDup = c.messages.filter(
+            (m) => m.id !== aiMessage.id && m.role !== "streaming"
+          );
+          const already =
+            withoutDup.length &&
+            withoutDup[withoutDup.length - 1].role === "assistant" &&
+            withoutDup[withoutDup.length - 1].content === finalAnswer;
+          return {
+            ...c,
+            id: server || c.id,
+            messages: already ? withoutDup : [...withoutDup, aiMessage],
+            loaded: true,
+          };
+        });
+        if (!found && server) {
+          // Safety: create the conversation if rename race dropped it
+          return [
+            {
+              id: server,
+              title: query.slice(0, 40),
+              messages: [userMessage, aiMessage],
+              loaded: true,
+            },
+            ...next,
+          ];
+        }
+        return next;
+      });
+
+      if (server) {
+        setActiveChatId(server);
+        streamServerIdRef.current = server;
+      }
+      setStreamingText("");
+      finalized = true;
+    };
 
     try {
       await streamChat(
@@ -313,15 +460,16 @@ export default function AIAssistant() {
           onEvent: (event) => {
             if (event.type === "meta" && event.conversation_id) {
               serverConvId = event.conversation_id;
+              streamServerIdRef.current = event.conversation_id;
+              const local = streamLocalIdRef.current;
               setConversations((prev) =>
                 prev.map((c) =>
-                  c.id === currentId
-                    ? { ...c, id: event.conversation_id }
+                  matchChat(c, local, null)
+                    ? { ...c, id: event.conversation_id, loaded: true }
                     : c
                 )
               );
               setActiveChatId(event.conversation_id);
-              currentId = event.conversation_id;
             }
             if (event.type === "citations") {
               citations = (event.citations || []).map(normalizeCitation);
@@ -333,30 +481,13 @@ export default function AIAssistant() {
             if (event.type === "done") {
               const finalAnswer = event.answer || assembled;
               citations = (event.citations || citations).map(normalizeCitation);
-              const finalId = event.conversation_id || currentId;
-              const aiMessage = {
-                id: event.message_id || `msg-ai-${Date.now()}`,
-                role: "assistant",
-                content: finalAnswer,
+              applyCredits(event);
+              commitAssistant(
+                finalAnswer,
                 citations,
-              };
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.id === currentId || c.id === finalId
-                    ? {
-                        ...c,
-                        id: finalId,
-                        messages: [
-                          ...c.messages.filter((m) => m.role !== "streaming"),
-                          aiMessage,
-                        ],
-                        loaded: true,
-                      }
-                    : c
-                )
+                event.conversation_id || serverConvId,
+                event.message_id
               );
-              setActiveChatId(finalId);
-              setStreamingText("");
             }
             if (event.type === "error") {
               throw new Error(event.detail || "Stream error");
@@ -364,31 +495,23 @@ export default function AIAssistant() {
           },
         }
       );
+
+      // If stream ended without a done event but we have tokens, still commit
+      if (!finalized && assembled) {
+        commitAssistant(assembled, citations, serverConvId, null);
+      }
     } catch (err) {
       if (err.name === "AbortError") {
         if (assembled) {
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === currentId
-                ? {
-                    ...c,
-                    messages: [
-                      ...c.messages,
-                      {
-                        id: `msg-ai-${Date.now()}`,
-                        role: "assistant",
-                        content: assembled + "\n\n*(Generation stopped)*",
-                        citations,
-                      },
-                    ],
-                  }
-                : c
-            )
+          commitAssistant(
+            assembled + "\n\n*(Generation stopped)*",
+            citations,
+            serverConvId,
+            null
           );
         }
       } else {
         console.error(err);
-        // Fallback non-stream
         try {
           const res = await api.post("/chat", {
             query,
@@ -397,56 +520,28 @@ export default function AIAssistant() {
             knowledge_base_id: knowledgeBaseId || null,
           });
           const data = normalizeChatResponse(res.data);
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === currentId || c.id === data.conversation_id
-                ? {
-                    ...c,
-                    id: data.conversation_id,
-                    messages: [
-                      ...c.messages,
-                      {
-                        id: data.message_id,
-                        role: "assistant",
-                        content: data.answer,
-                        citations: data.citations,
-                      },
-                    ],
-                    loaded: true,
-                  }
-                : c
-            )
+          applyCredits(data);
+          commitAssistant(
+            data.answer,
+            data.citations,
+            data.conversation_id,
+            data.message_id
           );
-          setActiveChatId(data.conversation_id);
         } catch (fallbackErr) {
           const msg =
             fallbackErr.response?.data?.message ||
+            fallbackErr.response?.data?.detail ||
             fallbackErr.message ||
             "Failed to get a response.";
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === currentId
-                ? {
-                    ...c,
-                    messages: [
-                      ...c.messages,
-                      {
-                        id: `err-${Date.now()}`,
-                        role: "assistant",
-                        content: `**Error:** ${msg}`,
-                        citations: [],
-                      },
-                    ],
-                  }
-                : c
-            )
-          );
+          commitAssistant(`**Error:** ${msg}`, [], serverConvId, null);
         }
       }
     } finally {
       setIsLoading(false);
-      setStreamingText("");
+      if (!finalized) setStreamingText("");
       abortRef.current = null;
+      streamingLockRef.current = false;
+      streamLocalIdRef.current = null;
     }
   };
 
@@ -463,11 +558,11 @@ export default function AIAssistant() {
         conversation_id: activeChatId,
       });
       const data = normalizeChatResponse(res.data);
+      applyCredits(data);
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== activeChatId) return c;
           const msgs = [...c.messages];
-          // Replace last assistant message
           for (let i = msgs.length - 1; i >= 0; i--) {
             if (msgs[i].role === "assistant") {
               msgs[i] = {
@@ -658,7 +753,6 @@ export default function AIAssistant() {
       <Navbar />
 
       <div className="flex flex-1 pt-[68px] overflow-hidden relative">
-        {/* Left sidebar */}
         <aside
           className={`
             fixed inset-y-[68px] left-0 z-30 w-[280px] bg-white border-r border-[#E8EAF5] flex flex-col transition-transform duration-300 md:static md:translate-x-0 shrink-0
@@ -673,7 +767,6 @@ export default function AIAssistant() {
               <Plus size={16} /> New chat
             </button>
 
-            {/* Knowledge base picker */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Knowledge Base
@@ -687,9 +780,7 @@ export default function AIAssistant() {
                   }}
                   className="w-full appearance-none bg-[#FAFBFF] border border-[#E8EAF5] rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#6D5DFC]"
                 >
-                  {knowledgeBases.length === 0 && (
-                    <option value="">Default</option>
-                  )}
+                  {knowledgeBases.length === 0 && <option value="">Default</option>}
                   {knowledgeBases.map((kb) => (
                     <option key={kb.id} value={kb.id}>
                       {kb.name} ({kb.ready_document_count || 0} ready)
@@ -728,7 +819,9 @@ export default function AIAssistant() {
                   <div
                     key={chat.id}
                     onClick={() => {
+                      if (streamingLockRef.current) return;
                       setActiveChatId(chat.id);
+                      if (chat.document_id) setSelectedContextDocId(chat.document_id);
                       setShowMobileSidebar(false);
                     }}
                     className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition ${
@@ -737,7 +830,7 @@ export default function AIAssistant() {
                         : "hover:bg-slate-50 text-slate-600"
                     }`}
                   >
-                    <MessageIcon />
+                    <Sparkles size={14} className="shrink-0 opacity-70" />
                     <div className="flex-1 min-w-0">
                       {editingChatId === chat.id ? (
                         <input
@@ -781,9 +874,7 @@ export default function AIAssistant() {
           </div>
         </aside>
 
-        {/* Main chat column */}
         <main className="flex-1 flex flex-col min-w-0 bg-[#FAFBFF]">
-          {/* Toolbar */}
           <div className="px-4 py-3 border-b border-[#E8EAF5] bg-white/80 backdrop-blur flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2 min-w-0">
               <button
@@ -797,8 +888,14 @@ export default function AIAssistant() {
                   {activeChat?.title || "AI Assistant"}
                 </h1>
                 <p className="text-[10px] text-slate-400 truncate">
-                  Searching {readyDocs.length} ready docs
-                  {selectedContextDocId ? " · filtered to 1 document" : " · full knowledge base"}
+                  {selectedContextDocId
+                    ? "Scoped to 1 document"
+                    : `Searching ${readyDocs.length} ready docs · full knowledge base`}
+                  {lastCreditsCharged != null && (
+                    <span className="ml-2 text-indigo-500">
+                      · last reply −{lastCreditsCharged} credits
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -828,14 +925,12 @@ export default function AIAssistant() {
               <button
                 onClick={() => setShowRightPanel((v) => !v)}
                 className="p-2 rounded-lg hover:bg-slate-100 text-slate-500"
-                title="Toggle sources"
               >
                 {showRightPanel ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
               </button>
             </div>
           </div>
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-6">
             {bootLoading || messagesLoading ? (
               <ChatMessagesSkeleton />
@@ -843,6 +938,7 @@ export default function AIAssistant() {
               <EmptyChat
                 onPrompt={(p) => sendMessage(p)}
                 docCount={readyDocs.length}
+                scoped={Boolean(selectedContextDocId)}
               />
             ) : (
               <div className="max-w-3xl mx-auto space-y-6">
@@ -903,7 +999,6 @@ export default function AIAssistant() {
                             <button
                               onClick={() => handleCopy(msg.content, msg.id)}
                               className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700"
-                              title="Copy"
                             >
                               {copiedMsgId === msg.id ? (
                                 <Check size={14} className="text-emerald-500" />
@@ -914,7 +1009,6 @@ export default function AIAssistant() {
                             <button
                               onClick={handleRegenerate}
                               className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700"
-                              title="Regenerate"
                             >
                               <RotateCcw size={14} />
                             </button>
@@ -930,7 +1024,6 @@ export default function AIAssistant() {
                   );
                 })}
 
-                {/* Streaming bubble */}
                 {isLoading && (
                   <div className="flex gap-3">
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6D5DFC] to-[#8B5CF6] flex items-center justify-center text-white shrink-0">
@@ -953,7 +1046,6 @@ export default function AIAssistant() {
             )}
           </div>
 
-          {/* Composer */}
           <div className="border-t border-[#E8EAF5] bg-white p-4 shrink-0">
             <div className="max-w-3xl mx-auto space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -970,7 +1062,7 @@ export default function AIAssistant() {
                   ))}
                 </select>
                 <span className="text-[10px] text-slate-400 font-medium">
-                  Optional filter · default is entire knowledge base
+                  Chat costs 5–10 credits · Upload costs 3 credits
                 </span>
               </div>
 
@@ -994,7 +1086,6 @@ export default function AIAssistant() {
                     type="button"
                     onClick={stopGeneration}
                     className="p-3 rounded-2xl bg-red-500 text-white shadow-md hover:bg-red-600"
-                    title="Stop"
                   >
                     <StopCircle size={18} />
                   </button>
@@ -1012,7 +1103,6 @@ export default function AIAssistant() {
           </div>
         </main>
 
-        {/* Right sources panel */}
         {showRightPanel && (
           <aside className="hidden lg:flex w-[280px] border-l border-[#E8EAF5] bg-white flex-col shrink-0">
             <div className="p-4 border-b border-[#E8EAF5]">
@@ -1064,28 +1154,31 @@ export default function AIAssistant() {
   );
 }
 
-function MessageIcon() {
-  return <Sparkles size={14} className="shrink-0 opacity-70" />;
-}
-
-function EmptyChat({ onPrompt, docCount }) {
-  const prompts = [
-    "Summarize the key policies in my knowledge base",
-    "What are the onboarding steps?",
-    "Compare overlapping guidelines across documents",
-    "Create an FAQ from my documents",
-  ];
+function EmptyChat({ onPrompt, docCount, scoped }) {
+  const prompts = scoped
+    ? [
+        "Summarize this document",
+        "What are the key points?",
+        "List action items or requirements",
+        "Explain the main policy sections",
+      ]
+    : [
+        "Summarize the key policies in my knowledge base",
+        "What are the onboarding steps?",
+        "Compare overlapping guidelines across documents",
+        "Create an FAQ from my documents",
+      ];
   return (
     <div className="max-w-xl mx-auto text-center py-16 px-4">
       <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#6D5DFC] to-[#8B5CF6] flex items-center justify-center text-white shadow-lg">
         <Bot size={28} />
       </div>
       <h2 className="text-xl font-extrabold text-slate-900 mb-2">
-        Chat with your knowledge base
+        {scoped ? "Chat with this document" : "Chat with your knowledge base"}
       </h2>
       <p className="text-sm text-slate-500 mb-6">
         {docCount > 0
-          ? `${docCount} ready document${docCount === 1 ? "" : "s"} available for retrieval.`
+          ? `${docCount} ready document${docCount === 1 ? "" : "s"} available · 5–10 credits per reply`
           : "Upload documents to start building your knowledge base."}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

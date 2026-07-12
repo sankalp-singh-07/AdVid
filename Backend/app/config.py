@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     EXPOSE_RESET_CODES: bool = False  # only True in local dev intentionally
     INGESTION_EMBED_BATCH_SIZE: int = 24
 
+    # ─── Credits ──────────────────────────────────────────────────────────────
+    CREDIT_COST_UPLOAD: int = 3          # per document upload
+    CREDIT_COST_CHAT_MIN: int = 5        # min per AI reply
+    CREDIT_COST_CHAT_MAX: int = 10       # max per AI reply
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     def model_post_init(self, __context) -> None:

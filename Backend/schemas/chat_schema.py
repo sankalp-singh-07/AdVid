@@ -33,6 +33,8 @@ class ChatResponse(BaseModel):
     conversation_id: str
     message_id: str
     knowledge_base_id: str | None = None
+    credits_charged: int | None = None
+    credits_remaining: int | None = None
 
 
 class MessageResponse(BaseModel):

@@ -12,6 +12,7 @@ from models.document_model import Document
 from models.user_model import User
 from schemas.document_schema import DocumentUpdateMetadata
 from services.chunker_service import chunker_service
+from services.credit_service import deduct_credits, require_credits, upload_credit_cost
 from services.embedding_service import embedding_service
 from services.knowledge_base_service import knowledge_base_service
 from services.storage_service import storage_service
@@ -199,6 +200,11 @@ class DocumentService:
         knowledge_base_id: str | None = None,
     ) -> Document:
         content, ext, mime = await validate_upload(file)
+        cost = upload_credit_cost()
+        billed_user = await require_credits(
+            user.id, db, amount=cost, action=f"document upload ({cost} credits)"
+        )
+
         kb_id = await knowledge_base_service.resolve_kb_id(
             user.id, db, knowledge_base_id
         )
@@ -231,9 +237,21 @@ class DocumentService:
                 owner=owner or user.name,
             )
             db.add(doc)
+            await deduct_credits(
+                billed_user, db, cost, reason=f"upload doc={doc_id}"
+            )
             await db.commit()
             await db.refresh(doc)
-            logger.info("Upload saved user=%s doc=%s kb=%s", user.id, doc.id, kb_id)
+            # Expose credit info for clients that read response extras
+            doc._credits_charged = cost  # type: ignore[attr-defined]
+            doc._credits_remaining = billed_user.credits  # type: ignore[attr-defined]
+            logger.info(
+                "Upload saved user=%s doc=%s kb=%s credits=%d",
+                user.id,
+                doc.id,
+                kb_id,
+                cost,
+            )
             background_tasks.add_task(run_ingestion_pipeline, doc.id, user.id)
             return doc
         except Exception as e:

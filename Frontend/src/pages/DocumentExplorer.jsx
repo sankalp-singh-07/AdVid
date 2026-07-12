@@ -13,9 +13,11 @@ import {
   SearchBarSkeleton,
 } from "../components/Skeleton";
 import api from "../utils/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function DocumentExplorer({ initialTab } = {}) {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const uploadSectionRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -224,6 +226,8 @@ export default function DocumentExplorer({ initialTab } = {}) {
       setDocuments((prev) => [newDocMapped, ...prev]);
       setTotal((t) => t + 1);
       setUploadProgress(100);
+      // Upload costs credits — refresh navbar balance
+      refreshUser?.().catch(() => {});
     } catch (error) {
       console.error("Upload failed:", error);
       const msg =
@@ -290,6 +294,17 @@ export default function DocumentExplorer({ initialTab } = {}) {
         document_id: docId,
         knowledge_base_id: activeKbId || null,
         initial_query,
+        forceNew: true,
+      },
+    });
+  };
+
+  const openDocChat = (doc) => {
+    navigate("/assistant", {
+      state: {
+        document_id: doc.id,
+        knowledge_base_id: activeKbId || doc.knowledge_base_id || null,
+        forceNew: true,
       },
     });
   };
@@ -422,7 +437,7 @@ export default function DocumentExplorer({ initialTab } = {}) {
               : "Drag & drop documents"}
           </h3>
           <p className="text-[#64748B] text-xs max-w-lg mx-auto mb-4">
-            PDF, DOCX, PPTX, TXT, Markdown, CSV, Excel · max size enforced server-side
+            PDF, DOCX, PPTX, TXT, Markdown, CSV, Excel · 3 credits per upload
           </p>
           {uploadProgress != null && (
             <div className="max-w-sm mx-auto h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
@@ -631,14 +646,7 @@ export default function DocumentExplorer({ initialTab } = {}) {
                   )}
                   <div className="mt-auto pt-4 flex flex-wrap gap-2">
                     <button
-                      onClick={() =>
-                        navigate("/assistant", {
-                          state: {
-                            document_id: doc.id,
-                            knowledge_base_id: activeKbId,
-                          },
-                        })
-                      }
+                      onClick={() => openDocChat(doc)}
                       className="px-2.5 py-1.5 text-[10px] font-bold text-[#6D5DFC] bg-purple-50 rounded-lg hover:bg-[#6D5DFC] hover:text-white transition"
                     >
                       Chat
@@ -687,11 +695,7 @@ export default function DocumentExplorer({ initialTab } = {}) {
                   </div>
                   {statusBadge(doc)}
                   <button
-                    onClick={() =>
-                      navigate("/assistant", {
-                        state: { document_id: doc.id, knowledge_base_id: activeKbId },
-                      })
-                    }
+                    onClick={() => openDocChat(doc)}
                     className="text-[10px] font-bold text-[#6D5DFC] px-2 py-1"
                   >
                     Chat
