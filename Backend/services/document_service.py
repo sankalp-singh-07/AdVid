@@ -1,6 +1,5 @@
 import os
 import uuid
-from datetime import datetime, timezone
 from fastapi import UploadFile, HTTPException, status, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

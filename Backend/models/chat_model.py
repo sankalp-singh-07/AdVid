@@ -6,10 +6,6 @@ from app.db import Base
 
 
 class Conversation(Base):
-    """
-    SQLAlchemy model representing a chat session or thread.
-    Can be scoped optionally to a specific document.
-    """
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(
@@ -39,10 +35,6 @@ class Conversation(Base):
 
 
 class Message(Base):
-    """
-    SQLAlchemy model representing a single message in a conversation.
-    Supports storing text content and retrieved RAG source citations.
-    """
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(

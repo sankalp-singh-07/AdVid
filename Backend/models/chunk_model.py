@@ -8,10 +8,6 @@ from app.db import Base
 
 
 class DocumentChunk(Base):
-    """
-    SQLAlchemy model representing a semantic text chunk of an uploaded document.
-    Maps 1-to-1 with vectors/points inside Qdrant Vector Database.
-    """
     __tablename__ = "document_chunks"
 
     id: Mapped[str] = mapped_column(

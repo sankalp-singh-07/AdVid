@@ -8,10 +8,6 @@ from app.db import Base
 
 
 class Document(Base):
-    """
-    SQLAlchemy model representing a document uploaded to the platform.
-    Tracks file storage info, processing status, and user-provided metadata.
-    """
     __tablename__ = "documents"
 
     id: Mapped[str] = mapped_column(
